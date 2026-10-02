@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 import pandas as pd
 import yfinance as yf
+from src.validation import clean_tickers, validate_price_data
 
 
 DEFAULT_TICKERS = [
@@ -30,14 +31,7 @@ def download_prices(
 ) -> pd.DataFrame:
     """Download adjusted closing prices for one or more assets."""
 
-    normalized_tickers = [
-        ticker.strip().upper()
-        for ticker in tickers
-        if ticker.strip()
-    ]
-
-    if not normalized_tickers:
-        raise ValueError("Please provide at least one ticker.")
+    normalized_tickers = clean_tickers(tickers)
 
     data = yf.download(
         normalized_tickers,
@@ -56,6 +50,7 @@ def download_prices(
         prices = data["Close"].to_frame(name=normalized_tickers[0])
 
     prices = prices.dropna(how="all").sort_index()
+    prices = validate_price_data(prices, normalized_tickers)
 
     return prices
 
@@ -67,3 +62,4 @@ if __name__ == "__main__":
     )
 
     print(sample_prices.tail())
+

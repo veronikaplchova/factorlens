@@ -79,3 +79,25 @@ def validate_weights(
         raise ValueError("Portfolio weights must add up to 1.0.")
 
     return weight_array
+
+
+def validate_price_data(
+    prices: pd.DataFrame,
+    requested_tickers: Sequence[str],
+    minimum_observations: int = 2,
+) -> pd.DataFrame:
+    """Check that every requested ticker has enough usable price data."""
+    missing_tickers = [
+        ticker
+        for ticker in requested_tickers
+        if ticker not in prices.columns
+        or prices[ticker].dropna().shape[0] < minimum_observations
+    ]
+
+    if missing_tickers:
+        ticker_list = ", ".join(missing_tickers)
+        raise ValueError(
+            f"No sufficient price data was found for: {ticker_list}"
+        )
+
+    return prices.loc[:, list(requested_tickers)]
