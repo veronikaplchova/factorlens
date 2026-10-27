@@ -6,14 +6,28 @@ from src.returns import (
     calculate_daily_returns,
     calculate_portfolio_returns,
 )
+
 from src.performance import (
     calculate_annualized_return,
     calculate_annualized_volatility,
     calculate_cumulative_growth,
+    calculate_drawdown,
     calculate_max_drawdown,
     calculate_sharpe_ratio,
     calculate_total_return,
 )
+
+
+
+
+from src.visualization import (
+    plot_drawdown,
+    plot_portfolio_growth,
+    plot_portfolio_vs_benchmark,
+)
+
+
+
 
 
 def main():
@@ -25,6 +39,13 @@ def main():
         start="2025-01-01",
     )
 
+
+    benchmark_prices = download_prices(
+        tickers=["SPY"],
+        start="2025-01-01",
+    )
+
+
     # Keep asset columns aligned with their weights.
     prices = prices.loc[:, tickers]
 
@@ -34,6 +55,21 @@ def main():
         daily_returns,
         weights=weights,
     )
+
+
+    benchmark_returns = calculate_daily_returns(
+        benchmark_prices
+    )["SPY"]
+
+    # Compare only dates available for both investments.
+    common_dates = portfolio_returns.index.intersection(
+        benchmark_returns.index
+    )
+
+    portfolio_returns = portfolio_returns.loc[common_dates]
+    benchmark_returns = benchmark_returns.loc[common_dates]
+
+
 
     if portfolio_returns.isna().any():
         raise ValueError(
@@ -46,6 +82,19 @@ def main():
         portfolio_returns,
         initial_investment=initial_investment,
     )
+
+
+    benchmark_value = calculate_cumulative_growth(
+        benchmark_returns,
+        initial_investment=initial_investment,
+    )
+
+    benchmark_total_return = calculate_total_return(
+        benchmark_returns
+    )
+
+
+
 
     total_return = calculate_total_return(portfolio_returns)
 
@@ -72,6 +121,11 @@ def main():
     print(f"Final value: ${portfolio_value.iloc[-1]:,.2f}")
 
     print(f"\nTotal return: {total_return:.2%}")
+    print(f"Benchmark (SPY) return: {benchmark_total_return:.2%}")
+
+    outperformance = total_return - benchmark_total_return
+
+    print(f"Outperformance vs SPY: {outperformance:+.2%}")
     print(f"Annualized return: {annualized_return:.2%}")
     print(f"Annualized volatility: {annualized_volatility:.2%}")
     print(f"Sharpe ratio: {sharpe_ratio:.2f}")
@@ -79,6 +133,23 @@ def main():
 
     print("\nLatest portfolio values ($):")
     print(portfolio_value.tail().round(2))
+
+    print("\nDisplaying portfolio growth chart...")
+    plot_portfolio_growth(portfolio_value)
+
+
+    drawdown = calculate_drawdown(portfolio_returns)
+
+    print("\nDisplaying portfolio drawdown chart...")
+    plot_drawdown(drawdown)
+
+
+    print("\nDisplaying portfolio vs. benchmark chart...")
+
+    plot_portfolio_vs_benchmark(
+        portfolio_value,
+        benchmark_value,
+    )
 
 
 if __name__ == "__main__":

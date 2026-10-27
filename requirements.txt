@@ -26,3 +26,4 @@ typing_extensions==4.16.0
 urllib3==2.7.0
 websockets==17.1
 yfinance==1.7.0
+matplotlib>=3.11,<4
