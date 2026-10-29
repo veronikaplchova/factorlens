@@ -6,6 +6,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import numpy as np
+
 
 from src.data_loader import download_prices
 from src.performance import (
@@ -19,9 +21,12 @@ from src.performance import (
 )
 from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
+from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 
-from src.factors import calculate_capm, calculate_ff3
-from src.factor_data import load_fama_french_factors
+from src.factor_data import load_fama_french_five_factors
+
+
+
 
 
 st.set_page_config(page_title="FactorLens", page_icon="📊", layout="wide")
@@ -369,22 +374,47 @@ capm_results = calculate_capm(
     risk_free_rate=0.0,
 )
 
-# Download historical Fama-French three-factor data.
+
+
+# Download and cache Fama-French five-factor data.
 @st.cache_data(ttl=3600)
-def load_cached_ff3(start: str, end: str) -> pd.DataFrame:
-    """Cache daily Fama-French factor observations."""
-    return load_fama_french_factors(start, end)
+def load_cached_ff5(start: str, end: str) -> pd.DataFrame:
+    """Cache daily Fama-French five-factor observations."""
+    return load_fama_french_five_factors(start, end)
 
 
-ff3_data = load_cached_ff3(
+ff5_data = load_cached_ff5(
     start_date.isoformat(),
     end_date.isoformat(),
 )
 
-ff3_results = calculate_ff3(
-    portfolio_returns,
-    ff3_data,
+# Use common dates to make FF3 and FF5 comparable.
+
+shared_dates = portfolio_returns.index.intersection(
+    ff5_data.index
 )
+
+
+
+
+
+
+
+# Use identical observations and shared factors for both models.
+shared_returns = portfolio_returns.loc[shared_dates]
+shared_factors = ff5_data.loc[shared_dates]
+
+ff3_results = calculate_ff3(
+    shared_returns,
+    shared_factors,
+)
+
+ff5_results = calculate_ff5(
+    shared_returns,
+    shared_factors,
+)
+
+
 
 
 comparison = pd.DataFrame({
@@ -985,4 +1015,167 @@ with factor_tab:
         "Factor loadings describe historical return sensitivities, "
         "not actual portfolio holdings. Interpretations are descriptive; "
         "statistical significance has not yet been assessed."
+    )
+
+
+    st.divider()
+
+    st.subheader("Fama-French Five-Factor Model")
+    st.caption(
+        "Explore how market, size, value, profitability, "
+        "and investment factors relate to portfolio returns."
+    )
+
+    ff5_c1, ff5_c2 = st.columns(2)
+
+    with ff5_c1:
+        st.metric(
+            "FF5 Daily Alpha",
+            f"{ff5_results['alpha']:.3%}",
+        )
+
+    with ff5_c2:
+        st.metric(
+            "FF5 R-squared",
+            f"{ff5_results['r_squared']:.2%}",
+        )
+
+    ff5_exposures = pd.DataFrame(
+        {
+            "Factor": [
+                "Market",
+                "Size (SMB)",
+                "Value (HML)",
+                "Profitability (RMW)",
+                "Investment (CMA)",
+            ],
+            "Loading": [
+                ff5_results["market_beta"],
+                ff5_results["smb_beta"],
+                ff5_results["hml_beta"],
+                ff5_results["rmw_beta"],
+                ff5_results["cma_beta"],
+            ],
+        }
+    )
+
+    fig_ff5 = go.Figure()
+
+    fig_ff5.add_trace(
+        go.Bar(
+            x=ff5_exposures["Factor"],
+            y=ff5_exposures["Loading"],
+            marker_color=[
+                BLUE, PURPLE, "#67D6C0",
+                "#F4B860", "#E88DC7",
+            ],
+            text=ff5_exposures["Loading"].round(2),
+            textposition="outside",
+        )
+    )
+
+    fig_ff5.add_hline(
+        y=0,
+        line_color="#8793A8",
+        line_width=1,
+    )
+
+    fig_ff5.update_layout(
+        xaxis_title="Fama-French Factor",
+        yaxis_title="Estimated Factor Loading",
+        showlegend=False,
+    )
+
+    st.plotly_chart(
+        style_figure(fig_ff5, 430),
+        width="stretch",
+        key="ff5_exposure_chart",
+    )
+
+    st.divider()
+
+    st.subheader("Model Comparison: FF3 vs. FF5")
+    st.caption(
+        "Compare explanatory power using the same historical dates. "
+        "Adjusted R-squared accounts for the number of factors."
+    )
+
+    def adjusted_r_squared(r2, n, k):
+        """Adjust R-squared for the number of explanatory factors."""
+        if n <= k + 1 or not np.isfinite(r2):
+            return np.nan
+        return 1 - (1 - r2) * (n - 1) / (n - k - 1)
+
+    ff3_adj = adjusted_r_squared(
+        ff3_results["r_squared"],
+        ff3_results["n_observations"],
+        3,
+    )
+
+    ff5_adj = adjusted_r_squared(
+        ff5_results["r_squared"],
+        ff5_results["n_observations"],
+        5,
+    )
+
+    comparison = pd.DataFrame(
+        {
+            "Model": ["FF3", "FF5"],
+            "R-squared": [
+                ff3_results["r_squared"],
+                ff5_results["r_squared"],
+            ],
+            "Adjusted R-squared": [ff3_adj, ff5_adj],
+            "Daily Alpha": [
+                ff3_results["alpha"],
+                ff5_results["alpha"],
+            ],
+        }
+    )
+
+    st.dataframe(
+        comparison.style.format(
+            {
+                "R-squared": "{:.2%}",
+                "Adjusted R-squared": "{:.2%}",
+                "Daily Alpha": "{:.3%}",
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+
+
+    st.subheader("Model Comparison Insights")
+
+    improvement = ff5_adj - ff3_adj
+
+    if not np.isfinite(improvement):
+        st.warning(
+            "Insufficient data to compare adjusted R-squared."
+        )
+    elif improvement > 0:
+        st.success(
+            f"**FF5 provides a better adjusted fit.** "
+            f"Adjusted R² increases by {improvement:.2%} "
+            "in percentage-point terms, suggesting that "
+            "profitability and investment factors add "
+            "explanatory power over this historical period."
+        )
+    elif improvement < 0:
+        st.info(
+            f"**FF3 provides a better adjusted fit.** "
+            f"Adjusted R² decreases by {abs(improvement):.2%} "
+            "in percentage-point terms when adding "
+            "profitability and investment factors."
+        )
+    else:
+        st.info(
+            "Both models have the same adjusted R-squared."
+        )
+
+    st.caption(
+        "These comparisons describe in-sample regression fit. "
+        "They do not establish predictive performance or "
+        "statistical significance."
     )

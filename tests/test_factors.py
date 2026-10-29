@@ -231,3 +231,34 @@ def test_ff5_insufficient_observations():
 
     with pytest.raises(ValueError, match="seven observations"):
         calculate_ff5(portfolio, factors)
+
+
+def test_ff5_r_squared_at_least_ff3():
+    """Adding factors cannot reduce in-sample OLS R-squared."""
+
+    rng = np.random.default_rng(42)
+    dates = pd.bdate_range("2025-01-01", periods=100)
+
+    factors = pd.DataFrame(
+        rng.normal(0, 0.01, size=(100, 5)),
+        index=dates,
+        columns=["Mkt-RF", "SMB", "HML", "RMW", "CMA"],
+    )
+    factors["RF"] = 0.0001
+
+    portfolio = (
+        factors["RF"]
+        + 0.0003
+        + 1.1 * factors["Mkt-RF"]
+        + 0.3 * factors["SMB"]
+        - 0.2 * factors["HML"]
+        + 0.5 * factors["RMW"]
+        - 0.4 * factors["CMA"]
+        + rng.normal(0, 0.002, size=100)
+    )
+
+    ff3 = calculate_ff3(portfolio, factors)
+    ff5 = calculate_ff5(portfolio, factors)
+
+    assert ff3["n_observations"] == ff5["n_observations"]
+    assert ff5["r_squared"] >= ff3["r_squared"] - 1e-10
