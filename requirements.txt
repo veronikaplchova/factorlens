@@ -27,3 +27,4 @@ urllib3==2.7.0
 websockets==17.1
 yfinance==1.7.0
 matplotlib>=3.11,<4
+python -m streamlit run app.py
