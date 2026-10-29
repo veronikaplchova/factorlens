@@ -18,6 +18,7 @@ from src.performance import (
     calculate_total_return,
 )
 from src.returns import calculate_daily_returns, calculate_portfolio_returns
+from src.risk import calculate_risk_contributions
 
 st.set_page_config(page_title="FactorLens", page_icon="📊", layout="wide")
 
@@ -325,6 +326,9 @@ daily_returns = calculate_daily_returns(prices)
 portfolio_returns = calculate_portfolio_returns(
     daily_returns, weights=weights
 )
+risk_contributions = calculate_risk_contributions(
+    daily_returns, weights=weights
+)
 
 # Calculate portfolio performance.
 total_return = calculate_total_return(portfolio_returns)
@@ -409,20 +413,50 @@ with builder_tab:
     left, right = st.columns(2)
 
     with left:
+        
         fig = px.pie(
             composition,
             names="Ticker",
             values="Weight (%)",
-            hole=0.65,
+            hole=0.68,
             color_discrete_sequence=[
-                PURPLE, BLUE, GREEN, "#F59E0B", "#FB7185",
+                PURPLE, BLUE, GREEN, "#F59E0B",
+                RED, "#C4B5FD", "#38BDF8",
+                "#FBBF24", "#34D399", "#F472B6",
             ],
         )
+
+        fig.update_traces(
+            textinfo="percent",
+            textposition="inside",
+            textfont=dict(size=13, color="#FFFFFF"),
+            hovertemplate="%{label}: %{value:.2f}%<extra></extra>",
+            sort=False,
+        )
+
+        fig.update_layout(
+            showlegend=False,
+            annotations=[
+                dict(
+                    text=f"<b>{len(tickers)}</b><br>Holdings",
+                    x=0.5,
+                    y=0.5,
+                    font=dict(size=20, color="#F5F7FF"),
+                    showarrow=False,
+                )
+            ],
+        )
+
+        st.plotly_chart(
+            style_figure(fig, 340),
+            width="stretch",
+        )
+
         fig.update_traces(
             textinfo="percent",
             hovertemplate="%{label}: %{value:.2f}%<extra></extra>",
         )
-        st.plotly_chart(style_figure(fig, 340), width="stretch")
+        
 
     with right:
         st.markdown("#### Selected Holdings")
@@ -456,6 +490,48 @@ with risk_tab:
         st.metric("Max Drawdown", f"{max_drawdown:.2%}")
     with r3:
         st.metric("Concentration (HHI)", f"{hhi:.4f}")
+
+    st.subheader("Portfolio Weight vs. Risk Contribution")
+
+    risk_comparison = pd.DataFrame({
+        "Ticker": tickers,
+        "Portfolio Weight": weights_pct,
+        "Risk Contribution": risk_contributions.reindex(tickers).values,
+    })
+
+    risk_long = risk_comparison.melt(
+        id_vars="Ticker",
+        var_name="Metric",
+        value_name="Percentage",
+    )
+
+    fig = px.bar(
+        risk_long,
+        x="Ticker",
+        y="Percentage",
+        color="Metric",
+        barmode="group",
+        color_discrete_map={
+            "Portfolio Weight": BLUE,
+            "Risk Contribution": PURPLE,
+        },
+    )
+
+    fig.update_layout(
+        xaxis_title=None,
+        yaxis_title="Percentage (%)",
+    )
+
+    st.plotly_chart(
+        style_figure(fig, 370),
+        width="stretch",
+    )
+
+    st.caption(
+        "Portfolio weight measures invested capital. Risk contribution "
+        "measures each holding's share of total portfolio volatility. "
+        "Risk contributions can be negative when a holding reduces risk."
+    )
 
     st.subheader("Portfolio Drawdown")
 
