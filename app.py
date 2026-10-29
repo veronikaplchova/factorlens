@@ -493,6 +493,42 @@ with risk_tab:
 
     st.subheader("Portfolio Weight vs. Risk Contribution")
 
+    # Identify the largest contributor to portfolio risk.
+    largest_risk_ticker = risk_contributions.idxmax()
+    largest_risk_value = risk_contributions.max()
+
+    largest_risk_weight = weights_pct[
+        tickers.index(largest_risk_ticker)
+    ]
+
+    risk_difference = largest_risk_value - largest_risk_weight
+
+    st.markdown("#### Risk Contribution Insight")
+
+    st.info(
+        f"**{COMPANIES[largest_risk_ticker]} "
+        f"({largest_risk_ticker})** contributes "
+        f"**{largest_risk_value:.1f}%** of the portfolio's "
+        f"total volatility, compared with its "
+        f"**{largest_risk_weight:.1f}%** capital allocation."
+    )
+
+    if risk_difference > 5:
+        st.warning(
+            "This holding contributes disproportionately to "
+            "portfolio risk relative to its investment weight."
+        )
+    elif risk_difference < -5:
+        st.success(
+            "This holding contributes less to portfolio risk "
+            "than its capital allocation might suggest."
+        )
+    else:
+        st.caption(
+            "This holding's contribution to risk is relatively "
+            "close to its portfolio allocation."
+        )
+
     risk_comparison = pd.DataFrame({
         "Ticker": tickers,
         "Portfolio Weight": weights_pct,
