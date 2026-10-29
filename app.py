@@ -19,6 +19,7 @@ from src.performance import (
 )
 from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
+from src.factors import calculate_capm
 
 st.set_page_config(page_title="FactorLens", page_icon="📊", layout="wide")
 
@@ -358,6 +359,13 @@ common_dates = portfolio_returns.index.intersection(
 aligned_portfolio = portfolio_returns.loc[common_dates]
 aligned_benchmark = benchmark_returns.loc[common_dates]
 
+# Estimate CAPM using aligned daily returns.
+capm_results = calculate_capm(
+    aligned_portfolio,
+    aligned_benchmark,
+    risk_free_rate=0.0,
+)
+
 comparison = pd.DataFrame({
     "Portfolio": calculate_cumulative_growth(
         aligned_portfolio, initial_investment=10_000.0
@@ -368,8 +376,14 @@ comparison = pd.DataFrame({
 })
 
 # Build the main dashboard navigation.
-overview_tab, builder_tab, risk_tab = st.tabs(
-    [" Overview", " Portfolio Builder", " Risk Analytics"]
+
+overview_tab, builder_tab, risk_tab, factor_tab = st.tabs(
+    [
+        " Overview",
+        " Portfolio Builder",
+        " Risk Analytics",
+        " Factor Analysis",
+    ]
 )
 
 with overview_tab:
@@ -727,3 +741,112 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# CAPM Factor Analysis Dashboard
+with factor_tab:
+    st.subheader("CAPM Factor Analysis")
+
+    st.caption(
+        "Explore how your portfolio's historical returns "
+        "relate to movements in the S&P 500."
+    )
+
+    beta = capm_results["beta"]
+    alpha = capm_results["alpha"]
+    r_squared = capm_results["r_squared"]
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.metric("Market Beta (β)", f"{beta:.2f}")
+
+    with c2:
+        st.metric("Daily Alpha (α)", f"{alpha:.3%}")
+
+    with c3:
+        st.metric("R-squared (R²)", f"{r_squared:.2%}")
+
+    st.subheader("Portfolio vs. Market Returns")
+
+    capm_data = pd.DataFrame({
+        "Market Return": aligned_benchmark,
+        "Portfolio Return": aligned_portfolio,
+    }).dropna()
+
+    fig = px.scatter(
+        capm_data,
+        x="Market Return",
+        y="Portfolio Return",
+        color_discrete_sequence=[PURPLE],
+        opacity=0.65,
+    )
+
+    x_values = capm_data["Market Return"].sort_values()
+
+    fitted_returns = alpha + beta * x_values
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=fitted_returns,
+            mode="lines",
+            name="CAPM Regression",
+            line=dict(color=BLUE, width=3),
+        )
+    )
+
+    fig.update_layout(
+        xaxis_title="Daily S&P 500 Return",
+        yaxis_title="Daily Portfolio Return",
+        showlegend=True,
+    )
+
+    fig.update_xaxes(tickformat=".1%")
+    fig.update_yaxes(tickformat=".1%")
+
+    st.plotly_chart(
+        style_figure(fig, 430),
+        width="stretch",
+        key="capm_regression_chart",
+    )
+
+    st.caption(
+        "Each point represents one trading day's returns. "
+        "The fitted line estimates the portfolio's sensitivity "
+        "to S&P 500 movements."
+    )
+
+    st.subheader("Understanding Your CAPM Results")
+
+    if beta > 1.1:
+        beta_text = (
+            "Your portfolio has historically been more sensitive "
+            "to market movements than the S&P 500."
+        )
+    elif beta < 0.9:
+        beta_text = (
+            "Your portfolio has historically been less sensitive "
+            "to market movements than the S&P 500."
+        )
+    else:
+        beta_text = (
+            "Your portfolio has historically shown market "
+            "sensitivity relatively close to the S&P 500."
+        )
+
+    st.info(f"**Market Beta ({beta:.2f}):** {beta_text}")
+
+    st.info(
+        f"**Daily Alpha ({alpha:.3%}):** This is the estimated "
+        "daily regression intercept, assuming a zero risk-free "
+        "rate. It should not be interpreted as evidence of "
+        "investment skill without further statistical analysis."
+    )
+
+    st.info(
+        f"**R² ({r_squared:.1%}):** Approximately "
+        f"{r_squared:.1%} of the variation in your portfolio's "
+        "daily returns is explained by movements in the "
+        "S&P 500 over the selected historical period."
+    )
