@@ -19,7 +19,10 @@ from src.performance import (
 )
 from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
-from src.factors import calculate_capm
+
+from src.factors import calculate_capm, calculate_ff3
+from src.factor_data import load_fama_french_factors
+
 
 st.set_page_config(page_title="FactorLens", page_icon="📊", layout="wide")
 
@@ -365,6 +368,24 @@ capm_results = calculate_capm(
     aligned_benchmark,
     risk_free_rate=0.0,
 )
+
+# Download historical Fama-French three-factor data.
+@st.cache_data(ttl=3600)
+def load_cached_ff3(start: str, end: str) -> pd.DataFrame:
+    """Cache daily Fama-French factor observations."""
+    return load_fama_french_factors(start, end)
+
+
+ff3_data = load_cached_ff3(
+    start_date.isoformat(),
+    end_date.isoformat(),
+)
+
+ff3_results = calculate_ff3(
+    portfolio_returns,
+    ff3_data,
+)
+
 
 comparison = pd.DataFrame({
     "Portfolio": calculate_cumulative_growth(
@@ -849,4 +870,119 @@ with factor_tab:
         f"{r_squared:.1%} of the variation in your portfolio's "
         "daily returns is explained by movements in the "
         "S&P 500 over the selected historical period."
+    )
+
+
+    st.divider()
+
+    st.subheader("Fama-French Three-Factor Model")
+    st.caption(
+        "Explore your portfolio's historical exposure to "
+        "market, size, and value factors."
+    )
+
+    ff_c1, ff_c2 = st.columns(2)
+
+    with ff_c1:
+        st.metric(
+            "FF3 Daily Alpha",
+            f"{ff3_results['alpha']:.3%}",
+        )
+
+    with ff_c2:
+        st.metric(
+            "FF3 R-squared",
+            f"{ff3_results['r_squared']:.2%}",
+        )
+
+    exposure_data = pd.DataFrame(
+        {
+            "Factor": [
+                "Market",
+                "Size (SMB)",
+                "Value (HML)",
+            ],
+            "Loading": [
+                ff3_results["market_beta"],
+                ff3_results["smb_beta"],
+                ff3_results["hml_beta"],
+            ],
+        }
+    )
+
+    fig_ff3 = go.Figure()
+
+    fig_ff3.add_trace(
+        go.Bar(
+            x=exposure_data["Factor"],
+            y=exposure_data["Loading"],
+            marker_color=[BLUE, PURPLE, "#67D6C0"],
+            text=exposure_data["Loading"].round(2),
+            textposition="outside",
+            name="Factor Exposure",
+        )
+    )
+
+    fig_ff3.add_hline(
+        y=0,
+        line_color="#8793A8",
+        line_width=1,
+    )
+
+    fig_ff3.update_layout(
+        xaxis_title="Fama-French Factor",
+        yaxis_title="Estimated Factor Loading",
+        showlegend=False,
+    )
+
+    st.plotly_chart(
+        style_figure(fig_ff3, 420),
+        width="stretch",
+        key="ff3_exposure_chart",
+    )
+
+
+    st.subheader("Understanding Your Factor Exposures")
+
+    market_loading = ff3_results["market_beta"]
+    size_loading = ff3_results["smb_beta"]
+    value_loading = ff3_results["hml_beta"]
+
+    if market_loading > 1.1:
+        market_text = "Higher sensitivity to market movements."
+    elif market_loading < 0.9:
+        market_text = "Lower sensitivity to market movements."
+    else:
+        market_text = "Market sensitivity close to one."
+
+    if size_loading > 0.1:
+        size_text = "Positive exposure to the small-cap factor."
+    elif size_loading < -0.1:
+        size_text = "Negative exposure to the small-cap factor, suggesting a large-cap tilt."
+    else:
+        size_text = "Relatively limited estimated size exposure."
+
+    if value_loading > 0.1:
+        value_text = "Positive exposure to the value factor."
+    elif value_loading < -0.1:
+        value_text = "Negative exposure to the value factor, suggesting a growth tilt."
+    else:
+        value_text = "Relatively limited estimated value exposure."
+
+    st.info(
+        f"**Market ({market_loading:.2f}):** {market_text}"
+    )
+
+    st.info(
+        f"**Size / SMB ({size_loading:.2f}):** {size_text}"
+    )
+
+    st.info(
+        f"**Value / HML ({value_loading:.2f}):** {value_text}"
+    )
+
+    st.caption(
+        "Factor loadings describe historical return sensitivities, "
+        "not actual portfolio holdings. Interpretations are descriptive; "
+        "statistical significance has not yet been assessed."
     )
