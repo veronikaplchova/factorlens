@@ -50,3 +50,51 @@ def load_fama_french_factors(
         raise ValueError("Factor data contains missing values.")
 
     return factors
+
+
+def load_fama_french_five_factors(
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """Download daily Fama-French five-factor data."""
+
+    if pd.Timestamp(start_date) >= pd.Timestamp(end_date):
+        raise ValueError("Start date must be before end date.")
+
+    dataset = web.DataReader(
+        "F-F_Research_Data_5_Factors_2x3_daily",
+        "famafrench",
+        start=start_date,
+        end=end_date,
+    )
+
+    factors = dataset[0].copy()
+
+    required = [
+        "Mkt-RF",
+        "SMB",
+        "HML",
+        "RMW",
+        "CMA",
+        "RF",
+    ]
+
+    if not set(required).issubset(factors.columns):
+        raise ValueError("Required five-factor columns are missing.")
+
+    factors = factors[required].astype(float) / 100.0
+
+    if isinstance(factors.index, pd.PeriodIndex):
+        factors.index = factors.index.to_timestamp()
+    else:
+        factors.index = pd.to_datetime(factors.index)
+
+    factors = factors.sort_index()
+
+    if factors.empty:
+        raise ValueError("No five-factor data available.")
+
+    if factors.isna().any().any():
+        raise ValueError("Five-factor data contains missing values.")
+
+    return factors

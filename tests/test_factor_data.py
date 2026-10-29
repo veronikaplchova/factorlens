@@ -5,7 +5,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.factor_data import load_fama_french_factors
+from src.factor_data import (
+    load_fama_french_factors,
+    load_fama_french_five_factors,
+)
 
 
 def make_sample_data():
@@ -95,4 +98,70 @@ def test_empty_factor_data(monkeypatch):
     with pytest.raises(ValueError, match="No factor data"):
         load_fama_french_factors(
             "2025-01-01", "2025-01-31"
+        )
+
+
+
+def test_five_factor_data_conversion(monkeypatch):
+    """Check five-factor values and date conversion."""
+
+    dates = pd.period_range("2025-01-02", periods=3, freq="D")
+
+    sample = pd.DataFrame(
+        {
+            "Mkt-RF": [1.0, -2.0, 0.5],
+            "SMB": [0.2, -0.1, 0.3],
+            "HML": [0.4, 0.2, -0.2],
+            "RMW": [0.6, -0.3, 0.1],
+            "CMA": [-0.5, 0.4, 0.2],
+            "RF": [0.02, 0.02, 0.02],
+        },
+        index=dates,
+    )
+
+    monkeypatch.setattr(
+        "src.factor_data.web.DataReader",
+        lambda *args, **kwargs: {0: sample},
+    )
+
+    result = load_fama_french_five_factors(
+        "2025-01-01", "2025-01-31"
+    )
+
+    assert result.iloc[0]["Mkt-RF"] == pytest.approx(0.01)
+    assert result.iloc[0]["RMW"] == pytest.approx(0.006)
+    assert result.iloc[0]["CMA"] == pytest.approx(-0.005)
+    assert isinstance(result.index, pd.DatetimeIndex)
+
+
+def test_five_factor_missing_column(monkeypatch):
+    """Reject five-factor datasets missing a column."""
+
+    sample = pd.DataFrame(
+        {
+            "Mkt-RF": [1.0],
+            "SMB": [0.2],
+            "HML": [0.4],
+            "RMW": [0.6],
+            "RF": [0.02],
+        }
+    )
+
+    monkeypatch.setattr(
+        "src.factor_data.web.DataReader",
+        lambda *args, **kwargs: {0: sample},
+    )
+
+    with pytest.raises(ValueError, match="five-factor columns"):
+        load_fama_french_five_factors(
+            "2025-01-01", "2025-01-31"
+        )
+
+
+def test_five_factor_invalid_dates():
+    """Reject an invalid date range."""
+
+    with pytest.raises(ValueError, match="before end date"):
+        load_fama_french_five_factors(
+            "2025-02-01", "2025-01-01"
         )
