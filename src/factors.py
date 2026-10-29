@@ -1,0 +1,51 @@
+
+"""Factor models for portfolio return analysis."""
+
+import numpy as np
+import pandas as pd
+
+
+def calculate_capm(
+    portfolio_returns: pd.Series,
+    market_returns: pd.Series,
+    risk_free_rate: float = 0.0,
+) -> dict:
+    """Estimate CAPM alpha, beta, and R-squared using OLS."""
+
+    data = pd.concat(
+        [portfolio_returns, market_returns],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    if len(data) < 3:
+        raise ValueError("At least three observations are required.")
+
+    if not np.isfinite(data.to_numpy(dtype=float)).all():
+        raise ValueError("Returns must be finite.")
+
+    y = data.iloc[:, 0].to_numpy(dtype=float) - risk_free_rate
+    x = data.iloc[:, 1].to_numpy(dtype=float) - risk_free_rate
+
+    if np.var(x) <= 0:
+        raise ValueError("Market returns must vary.")
+
+    beta, alpha = np.polyfit(x, y, 1)
+
+    predicted = alpha + beta * x
+    residuals = y - predicted
+
+    total_ss = np.sum((y - y.mean()) ** 2)
+    residual_ss = np.sum(residuals ** 2)
+
+    r_squared = (
+        1 - residual_ss / total_ss
+        if total_ss > 0
+        else np.nan
+    )
+
+    return {
+        "alpha": float(alpha),
+        "beta": float(beta),
+        "r_squared": float(r_squared),
+    }
