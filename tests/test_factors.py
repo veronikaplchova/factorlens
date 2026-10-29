@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.factors import calculate_capm, calculate_ff3
+from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 
 
 def test_capm_known_alpha_and_beta():
@@ -151,3 +151,83 @@ def test_ff3_insufficient_observations():
 
     with pytest.raises(ValueError, match="five observations"):
         calculate_ff3(portfolio, factors)
+
+
+def test_ff5_known_coefficients():
+    """Check whether FF5 recovers known factor loadings."""
+
+    rng = np.random.default_rng(42)
+    dates = pd.bdate_range("2025-01-01", periods=30)
+
+    factors = pd.DataFrame(
+        rng.normal(0, 0.01, size=(30, 5)),
+        index=dates,
+        columns=["Mkt-RF", "SMB", "HML", "RMW", "CMA"],
+    )
+    factors["RF"] = 0.0001
+
+    portfolio = (
+        factors["RF"]
+        + 0.0005
+        + 1.2 * factors["Mkt-RF"]
+        + 0.4 * factors["SMB"]
+        - 0.3 * factors["HML"]
+        + 0.6 * factors["RMW"]
+        - 0.2 * factors["CMA"]
+    )
+
+    result = calculate_ff5(portfolio, factors)
+
+    assert result["alpha"] == pytest.approx(0.0005)
+    assert result["market_beta"] == pytest.approx(1.2)
+    assert result["smb_beta"] == pytest.approx(0.4)
+    assert result["hml_beta"] == pytest.approx(-0.3)
+    assert result["rmw_beta"] == pytest.approx(0.6)
+    assert result["cma_beta"] == pytest.approx(-0.2)
+    assert result["r_squared"] == pytest.approx(1.0)
+    assert result["n_observations"] == 30
+
+
+def test_ff5_missing_factor():
+    """Check that missing factor columns are rejected."""
+
+    dates = pd.bdate_range("2025-01-01", periods=10)
+
+    factors = pd.DataFrame(
+        {
+            "Mkt-RF": [0.01] * 10,
+            "SMB": [0.002] * 10,
+            "HML": [0.003] * 10,
+            "RMW": [0.004] * 10,
+            "RF": [0.0001] * 10,
+        },
+        index=dates,
+    )
+
+    portfolio = pd.Series([0.01] * 10, index=dates)
+
+    with pytest.raises(ValueError, match="five-factor columns"):
+        calculate_ff5(portfolio, factors)
+
+
+def test_ff5_insufficient_observations():
+    """Check that fewer than seven observations are rejected."""
+
+    dates = pd.bdate_range("2025-01-01", periods=5)
+
+    factors = pd.DataFrame(
+        {
+            "Mkt-RF": [0.01, -0.02, 0.03, 0.01, -0.01],
+            "SMB": [0.002, 0.001, -0.003, 0.004, -0.002],
+            "HML": [0.003, -0.002, 0.001, 0.002, -0.001],
+            "RMW": [0.004, 0.001, -0.002, 0.003, -0.003],
+            "CMA": [0.001, -0.003, 0.002, -0.002, 0.004],
+            "RF": [0.0001] * 5,
+        },
+        index=dates,
+    )
+
+    portfolio = pd.Series([0.01] * 5, index=dates)
+
+    with pytest.raises(ValueError, match="seven observations"):
+        calculate_ff5(portfolio, factors)
