@@ -23,6 +23,7 @@ from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
+from src.stress import STRESS_PERIODS, calculate_stress_period
 
 
 from src.factor_data import load_fama_french_five_factors
@@ -444,14 +445,17 @@ comparison = pd.DataFrame({
 
 # Build the main dashboard navigation.
 
-overview_tab, builder_tab, risk_tab, factor_tab = st.tabs(
+
+overview_tab, builder_tab, risk_tab, factor_tab, stress_tab = st.tabs(
     [
         " Overview",
         " Portfolio Builder",
         " Risk Analytics",
         " Factor Analysis",
+        " Stress Testing",
     ]
 )
+
 
 with overview_tab:
     st.subheader("Your Portfolio at a Glance")
@@ -1352,3 +1356,147 @@ with factor_tab:
         "These results do not prove causation, "
         "economic importance, or future performance."
     )
+
+
+with stress_tab:
+    st.subheader("Historical Stress Testing")
+    st.caption(
+        "Explore how your selected portfolio holdings behaved "
+        "during major historical market downturns."
+    )
+
+    selected_scenario = st.selectbox(
+        "Select a historical scenario",
+        options=list(STRESS_PERIODS.keys()),
+        key="stress_scenario_selector",
+    )
+
+    stress_start, stress_end = STRESS_PERIODS[selected_scenario]
+
+    st.info(
+        f"**{selected_scenario}** | "
+        f"{stress_start} to {stress_end}"
+    )
+
+    st.caption(
+        "Historical stress results use adjusted market prices. "
+        "They are retrospective estimates, not forecasts."
+    )
+
+    @st.cache_data(ttl=3600)
+    def load_stress_prices(tickers, start, end):
+        """Download historical prices for a stress scenario."""
+        return download_prices(tickers, start, end)
+
+    scenario_start = pd.Timestamp(stress_start)
+    scenario_end = pd.Timestamp(stress_end)
+
+    download_start = scenario_start - pd.Timedelta(days=10)
+    download_end = scenario_end + pd.Timedelta(days=1)
+
+    # Reuse the holdings from the portfolio return data.
+    stress_tickers = tuple(daily_returns.columns)
+
+    try:
+        stress_prices = load_stress_prices(
+            stress_tickers,
+            download_start.strftime("%Y-%m-%d"),
+            download_end.strftime("%Y-%m-%d"),
+        )
+
+        # Check that every holding has historical prices.
+        missing_tickers = [
+            ticker for ticker in stress_tickers
+            if ticker not in stress_prices.columns
+        ]
+
+        if missing_tickers:
+            st.warning(
+                "Historical prices are unavailable for: "
+                + ", ".join(missing_tickers)
+            )
+        elif stress_prices.empty:
+            st.warning(
+                "No historical prices are available "
+                "for the selected scenario."
+            )
+        elif stress_prices.isna().any().any():
+            st.warning(
+                "Some holdings have missing historical prices. "
+                "Stress testing requires complete data."
+            )
+
+        elif (
+            stress_prices.index.min() > scenario_start
+            or stress_prices.index.max() < (
+                scenario_end - pd.Timedelta(days=4)
+            )
+        ):
+            st.warning(
+                "Historical prices do not cover the full "
+                "selected crisis period. Results are unavailable."
+            )
+
+
+        else:
+            st.success(
+                f"Historical prices downloaded successfully "
+                f"for {len(stress_tickers)} holdings."
+            )
+
+            # Match historical prices to portfolio ticker order.
+            stress_prices = stress_prices.loc[:, tickers]
+
+            # Convert historical prices into daily asset returns.
+            stress_daily_returns = calculate_daily_returns(
+                stress_prices
+            )
+
+            # Apply the same portfolio weights as the main dashboard.
+            stress_portfolio_returns = calculate_portfolio_returns(
+                stress_daily_returns,
+                weights=weights,
+            )
+
+            # Calculate metrics for the selected crisis only.
+            stress_results = calculate_stress_period(
+                stress_portfolio_returns,
+                stress_start,
+                stress_end,
+            )
+
+            st.subheader("Portfolio Stress Results")
+
+            stress_c1, stress_c2, stress_c3 = st.columns(3)
+
+            with stress_c1:
+                st.metric(
+                    "Crisis Total Return",
+                    f"{stress_results['total_return']:.2%}",
+                )
+
+            with stress_c2:
+                st.metric(
+                    "Maximum Drawdown",
+                    f"{stress_results['max_drawdown']:.2%}",
+                )
+
+            with stress_c3:
+                st.metric(
+                    "Annualized Volatility",
+                    f"{stress_results['annualized_volatility']:.2%}",
+                )
+
+            st.caption(
+                f"Based on {stress_results['n_observations']} "
+                "daily return observations."
+            )
+
+
+
+
+    except Exception as exc:
+        st.error(
+            f"Historical price download failed: {exc}"
+        )
+
