@@ -22,6 +22,8 @@ from src.performance import (
 from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
+from src.diagnostics import calculate_factor_diagnostics
+
 
 from src.factor_data import load_fama_french_five_factors
 
@@ -414,6 +416,20 @@ ff5_results = calculate_ff5(
     shared_factors,
 )
 
+
+# Calculate FF5 statistical inference using HAC standard errors.
+ff5_diagnostics = calculate_factor_diagnostics(
+    shared_returns,
+    shared_factors,
+    factor_columns=[
+        "Mkt-RF",
+        "SMB",
+        "HML",
+        "RMW",
+        "CMA",
+    ],
+    max_lags=5,
+)
 
 
 
@@ -1178,4 +1194,161 @@ with factor_tab:
         "These comparisons describe in-sample regression fit. "
         "They do not establish predictive performance or "
         "statistical significance."
+    )
+
+    st.divider()
+
+    st.subheader("Factor Statistical Significance")
+    st.caption(
+        "Fama-French five-factor estimates with HAC "
+        "standard errors and 95% confidence intervals."
+    )
+
+    significance_table = ff5_diagnostics.copy()
+
+    significance_table["Factor"] = [
+        "Alpha",
+        "Market",
+        "Size (SMB)",
+        "Value (HML)",
+        "Profitability (RMW)",
+        "Investment (CMA)",
+    ]
+
+    significance_table["Significant at 5%"] = (
+        significance_table["p-value"] < 0.05
+    ).map({True: "Yes", False: "No"})
+
+    significance_table = significance_table[
+        [
+            "Factor",
+            "Coefficient",
+            "Standard Error",
+            "t-statistic",
+            "p-value",
+            "CI Lower",
+            "CI Upper",
+            "Significant at 5%",
+        ]
+    ]
+
+    st.dataframe(
+        significance_table.style.format(
+            {
+                "Coefficient": "{:.3f}",
+                "Standard Error": "{:.3f}",
+                "t-statistic": "{:.2f}",
+                "p-value": "{:.4f}",
+                "CI Lower": "{:.3f}",
+                "CI Upper": "{:.3f}",
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.subheader("Factor Confidence Intervals")
+
+    st.caption(
+        "Purple dots show estimated factor loadings. "
+        "Blue lines represent HAC-based 95% confidence intervals."
+    )
+
+    ci_data = ff5_diagnostics.drop(index="const").copy()
+
+    ci_labels = {
+        "Mkt-RF": "Market",
+        "SMB": "Size (SMB)",
+        "HML": "Value (HML)",
+        "RMW": "Profitability (RMW)",
+        "CMA": "Investment (CMA)",
+    }
+
+    ci_data["Factor"] = ci_data.index.map(ci_labels)
+    ci_data = ci_data.iloc[::-1]
+
+    fig_ci = go.Figure()
+
+    fig_ci.add_trace(
+        go.Scatter(
+            x=ci_data["Coefficient"],
+            y=ci_data["Factor"],
+            mode="markers",
+            marker=dict(color=PURPLE, size=11),
+            error_x=dict(
+                type="data",
+                symmetric=False,
+                array=ci_data["CI Upper"] - ci_data["Coefficient"],
+                arrayminus=ci_data["Coefficient"] - ci_data["CI Lower"],
+                color=BLUE,
+                thickness=2,
+                width=6,
+            ),
+            name="95% Confidence Interval",
+        )
+    )
+
+    fig_ci.add_vline(
+        x=0,
+        line_dash="dash",
+        line_color="#8793A8",
+    )
+
+    fig_ci.update_layout(
+        xaxis_title="Estimated Factor Loading",
+        yaxis_title="",
+        showlegend=False,
+    )
+
+    st.plotly_chart(
+        style_figure(fig_ci, 400),
+        width="stretch",
+        key="ff5_confidence_interval_chart",
+    )
+
+
+    st.subheader("Statistical Significance Insights")
+
+    factor_names = {
+        "Mkt-RF": "Market",
+        "SMB": "Size",
+        "HML": "Value",
+        "RMW": "Profitability",
+        "CMA": "Investment",
+    }
+
+    significant_factors = []
+    insignificant_factors = []
+
+    for factor, name in factor_names.items():
+        p_value = ff5_diagnostics.loc[factor, "p-value"]
+
+        if p_value < 0.05:
+            significant_factors.append(name)
+        else:
+            insignificant_factors.append(name)
+
+    st.info(
+        "**Statistically significant exposures (5% level):** "
+        + (
+            ", ".join(significant_factors)
+            if significant_factors
+            else "None"
+        )
+    )
+
+    st.info(
+        "**Not statistically significant (5% level):** "
+        + (
+            ", ".join(insignificant_factors)
+            if insignificant_factors
+            else "None"
+        )
+    )
+
+    st.caption(
+        "Significance is based on HAC standard errors "
+        "and individual two-sided tests at the 5% level. "
+        "These results do not prove causation, "
+        "economic importance, or future performance."
     )
