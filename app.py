@@ -23,7 +23,14 @@ from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
-from src.stress import STRESS_PERIODS, calculate_stress_period
+from src.stress import (
+    STRESS_PERIODS,
+    calculate_stress_period,
+    validate_stress_prices,
+)
+
+
+ 
 
 
 from src.factor_data import load_fama_french_five_factors
@@ -1446,6 +1453,10 @@ with stress_tab:
 
             # Match historical prices to portfolio ticker order.
             stress_prices = stress_prices.loc[:, tickers]
+
+            # Validate the selected holdings' historical prices.
+            validate_stress_prices(stress_prices)
+
 
             # Download S&P 500 prices for the same crisis period.
             stress_benchmark_prices = load_stress_prices(

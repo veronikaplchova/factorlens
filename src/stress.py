@@ -51,3 +51,19 @@ def calculate_stress_period(
         "annualized_volatility": float(volatility),
         "n_observations": len(period_returns),
     }
+
+
+def validate_stress_prices(prices: pd.DataFrame) -> None:
+    """Check that historical stress-test prices are valid."""
+
+    if prices.empty:
+        raise ValueError("Historical price data is empty.")
+
+    if prices.isna().any().any():
+        raise ValueError("Historical prices contain missing values.")
+
+    if not np.isfinite(prices.to_numpy(dtype=float)).all():
+        raise ValueError("Historical prices contain nonfinite values.")
+
+    if (prices <= 0).any().any():
+        raise ValueError("Historical prices must be positive.")

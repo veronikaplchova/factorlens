@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.stress import calculate_stress_period
+from src.stress import calculate_stress_period, validate_stress_prices
 
 
 def test_stress_total_return():
@@ -113,3 +113,49 @@ def test_stress_benchmark_date_alignment():
     assert list(common_dates) == list(pd.to_datetime([
         "2020-03-03", "2020-03-04"
     ]))
+
+def test_validate_stress_prices_missing_values():
+    """Reject historical prices containing missing values."""
+
+    prices = pd.DataFrame({
+        "AAPL": [100.0, np.nan, 105.0],
+        "MSFT": [200.0, 202.0, 204.0],
+    })
+
+    with pytest.raises(ValueError, match="missing values"):
+        validate_stress_prices(prices)
+
+
+@pytest.mark.parametrize("invalid_price", [0.0, -50.0])
+def test_validate_stress_prices_invalid_price(invalid_price):
+    """Reject zero and negative stock prices."""
+
+    prices = pd.DataFrame({
+        "AAPL": [100.0, invalid_price, 105.0],
+        "MSFT": [200.0, 202.0, 204.0],
+    })
+
+    with pytest.raises(ValueError, match="must be positive"):
+        validate_stress_prices(prices)
+
+
+def test_validate_stress_prices_empty():
+    """Reject an empty historical price dataset."""
+
+    prices = pd.DataFrame()
+
+    with pytest.raises(ValueError, match="empty"):
+        validate_stress_prices(prices)
+
+
+@pytest.mark.parametrize("invalid_price", [np.inf, -np.inf])
+def test_validate_stress_prices_infinite(invalid_price):
+    """Reject positive and negative infinite prices."""
+
+    prices = pd.DataFrame({
+        "AAPL": [100.0, invalid_price, 105.0],
+        "MSFT": [200.0, 202.0, 204.0],
+    })
+
+    with pytest.raises(ValueError, match="nonfinite"):
+        validate_stress_prices(prices)
