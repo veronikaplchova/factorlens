@@ -1483,6 +1483,62 @@ with stress_tab:
             stress_aligned_benchmark = stress_benchmark_returns.loc[
                 stress_common_dates
 ]
+            
+            # Restrict both investments to the selected crisis period.
+            stress_crisis_dates = stress_common_dates[
+                (stress_common_dates >= scenario_start)
+                & (stress_common_dates <= scenario_end)
+            ]
+
+            stress_aligned_portfolio = stress_aligned_portfolio.loc[
+                stress_crisis_dates
+            ]
+
+            stress_aligned_benchmark = stress_aligned_benchmark.loc[
+                stress_crisis_dates
+            ]
+
+            # Calculate cumulative growth for both investments.
+            stress_comparison = pd.DataFrame({
+                "Portfolio": calculate_cumulative_growth(
+                    stress_aligned_portfolio,
+                    initial_investment=10_000.0,
+                ),
+                "S&P 500": calculate_cumulative_growth(
+                    stress_aligned_benchmark,
+                    initial_investment=10_000.0,
+                ),
+            })
+
+            # Visualize portfolio performance against the market.
+            st.subheader("Crisis Performance vs. S&P 500")
+
+            fig_stress = go.Figure()
+
+            fig_stress.add_trace(go.Scatter(
+                x=stress_comparison.index,
+                y=stress_comparison["Portfolio"],
+                name="Your Portfolio",
+                line=dict(color=PURPLE, width=3),
+            ))
+
+            fig_stress.add_trace(go.Scatter(
+                x=stress_comparison.index,
+                y=stress_comparison["S&P 500"],
+                name="S&P 500 (SPY)",
+                line=dict(color=BLUE, width=3),
+            ))
+
+            fig_stress.update_yaxes(
+                title_text="Investment Value ($)"
+            )
+
+            st.plotly_chart(
+                style_figure(fig_stress, 430),
+                width="stretch",
+                key="stress_comparison_chart",
+            )
+
 
             # Calculate metrics for the selected crisis only.
             stress_results = calculate_stress_period(
