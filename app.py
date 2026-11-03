@@ -1454,6 +1454,37 @@ with stress_tab:
                 download_end.strftime("%Y-%m-%d"),
             )
 
+            # Validate historical benchmark prices.
+            if (
+                stress_benchmark_prices.empty
+                or "SPY" not in stress_benchmark_prices.columns
+            ):
+                raise ValueError(
+                    "S&P 500 historical prices are unavailable."
+                )
+
+            if not np.isfinite(
+                stress_benchmark_prices["SPY"].to_numpy()
+            ).all():
+                raise ValueError(
+                    "S&P 500 historical prices contain missing "
+                    "or invalid values."
+                )
+
+            # Check benchmark coverage of the crisis period.
+            benchmark_dates = stress_benchmark_prices.index
+
+            if (
+                benchmark_dates.min() > scenario_start
+                or benchmark_dates.max()
+                < scenario_end - pd.Timedelta(days=4)
+            ):
+                raise ValueError(
+                    "S&P 500 prices do not cover the "
+                    "full selected crisis period."
+                )
+
+
             # Calculate historical S&P 500 daily returns.
             stress_benchmark_returns = calculate_daily_returns(
                 stress_benchmark_prices
@@ -1489,6 +1520,18 @@ with stress_tab:
                 (stress_common_dates >= scenario_start)
                 & (stress_common_dates <= scenario_end)
             ]
+
+            # Require sufficient shared trading observations.
+            expected_trading_days = len(
+                pd.bdate_range(scenario_start, scenario_end)
+            )
+
+            if len(stress_crisis_dates) < 0.90 * expected_trading_days:
+                raise ValueError(
+                    "Insufficient overlapping historical trading "
+                    "days for a reliable crisis comparison."
+                )
+
 
             stress_aligned_portfolio = stress_aligned_portfolio.loc[
                 stress_crisis_dates
