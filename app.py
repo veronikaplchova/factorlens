@@ -1447,6 +1447,20 @@ with stress_tab:
             # Match historical prices to portfolio ticker order.
             stress_prices = stress_prices.loc[:, tickers]
 
+            # Download S&P 500 prices for the same crisis period.
+            stress_benchmark_prices = load_stress_prices(
+                ("SPY",),
+                download_start.strftime("%Y-%m-%d"),
+                download_end.strftime("%Y-%m-%d"),
+            )
+
+            # Calculate historical S&P 500 daily returns.
+            stress_benchmark_returns = calculate_daily_returns(
+                stress_benchmark_prices
+            )["SPY"]
+
+            
+
             # Convert historical prices into daily asset returns.
             stress_daily_returns = calculate_daily_returns(
                 stress_prices
@@ -1457,6 +1471,18 @@ with stress_tab:
                 stress_daily_returns,
                 weights=weights,
             )
+            # Keep only trading dates shared by the portfolio and SPY.
+            stress_common_dates = stress_portfolio_returns.index.intersection(
+                stress_benchmark_returns.index
+            )
+
+            stress_aligned_portfolio = stress_portfolio_returns.loc[
+                stress_common_dates
+            ]
+
+            stress_aligned_benchmark = stress_benchmark_returns.loc[
+                stress_common_dates
+]
 
             # Calculate metrics for the selected crisis only.
             stress_results = calculate_stress_period(
