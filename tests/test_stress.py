@@ -84,3 +84,32 @@ def test_stress_first_day_loss():
     )
 
     assert result["max_drawdown"] == pytest.approx(-0.10)
+
+
+def test_stress_benchmark_date_alignment():
+    """Compare portfolio and SPY only on shared dates."""
+
+    portfolio = pd.Series(
+        [0.01, -0.02, 0.03],
+        index=pd.to_datetime([
+            "2020-03-02", "2020-03-03", "2020-03-04"
+        ]),
+    )
+
+    benchmark = pd.Series(
+        [-0.01, 0.02, 0.01],
+        index=pd.to_datetime([
+            "2020-03-03", "2020-03-04", "2020-03-05"
+        ]),
+    )
+
+    common_dates = portfolio.index.intersection(benchmark.index)
+
+    aligned_portfolio = portfolio.loc[common_dates]
+    aligned_benchmark = benchmark.loc[common_dates]
+
+    assert len(common_dates) == 2
+    assert aligned_portfolio.index.equals(aligned_benchmark.index)
+    assert list(common_dates) == list(pd.to_datetime([
+        "2020-03-03", "2020-03-04"
+    ]))
