@@ -1542,11 +1542,23 @@ with stress_tab:
 
             # Calculate metrics for the selected crisis only.
             stress_results = calculate_stress_period(
-                stress_portfolio_returns,
+                stress_aligned_portfolio,
                 stress_start,
                 stress_end,
             )
 
+            
+            # Calculate benchmark performance over the same crisis dates.
+            stress_benchmark_results = calculate_stress_period(
+                stress_aligned_benchmark,
+                stress_start,
+                stress_end,
+            )
+            # Compare portfolio return against the market benchmark.
+            stress_outperformance = (
+                stress_results["total_return"]
+                - stress_benchmark_results["total_return"]
+            )
             st.subheader("Portfolio Stress Results")
 
             stress_c1, stress_c2, stress_c3 = st.columns(3)
@@ -1573,6 +1585,22 @@ with stress_tab:
                 f"Based on {stress_results['n_observations']} "
                 "daily return observations."
             )
+
+
+            # Display benchmark performance comparison.
+            benchmark_c1, benchmark_c2 = st.columns(2)
+
+            with benchmark_c1:
+                st.metric(
+                    "S&P 500 Crisis Return",
+                    f"{stress_benchmark_results['total_return']:.2%}",
+                )
+
+            with benchmark_c2:
+                st.metric(
+                    "Portfolio Outperformance",
+                    f"{stress_outperformance * 100:+.2f} pp",
+                )
 
 
 
