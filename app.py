@@ -1495,6 +1495,9 @@ with stress_tab:
                     "full selected crisis period."
                 )
 
+            # Apply reusable price validation to SPY.
+            validate_stress_prices(stress_benchmark_prices)
+
 
             # Calculate historical S&P 500 daily returns.
             stress_benchmark_returns = calculate_daily_returns(

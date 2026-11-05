@@ -159,3 +159,15 @@ def test_validate_stress_prices_infinite(invalid_price):
 
     with pytest.raises(ValueError, match="nonfinite"):
         validate_stress_prices(prices)
+
+
+def test_validate_stress_prices_valid():
+    """Accept complete, positive historical stock prices."""
+
+    prices = pd.DataFrame({
+        "AAPL": [100.0, 102.0, 105.0],
+        "MSFT": [200.0, 198.0, 204.0],
+        "SPY": [400.0, 405.0, 403.0],
+    })
+
+    assert validate_stress_prices(prices) is None
