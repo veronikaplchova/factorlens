@@ -81,3 +81,17 @@ def validate_stress_coverage(
             f"Portfolio data is missing {len(missing_dates)} "
             "trading days available in the S&P 500 benchmark."
         )
+
+def interpret_stress_performance(outperformance: float) -> str:
+    """Describe portfolio performance relative to the benchmark."""
+
+    if not np.isfinite(outperformance):
+        raise ValueError("Outperformance must be finite.")
+
+    if outperformance > 0:
+        return "outperformed"
+
+    if outperformance < 0:
+        return "underperformed"
+
+    return "matched"

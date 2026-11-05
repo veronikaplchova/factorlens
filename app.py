@@ -24,21 +24,20 @@ from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
 
+
 from src.stress import (
     STRESS_PERIODS,
     calculate_stress_period,
     validate_stress_prices,
     validate_stress_coverage,
+    interpret_stress_performance,
 )
 
 
 
- 
 
 
 from src.factor_data import load_fama_french_five_factors
-
-
 
 
 
@@ -1667,16 +1666,21 @@ with stress_tab:
                 )
 
             # Explain portfolio performance relative to SPY.
+
+            performance_status = interpret_stress_performance(
+                stress_outperformance
+            )
+
             st.subheader("Crisis Performance Insight")
 
-            if stress_outperformance > 0:
+            if performance_status == "outperformed":
                 st.success(
                     f"Your portfolio outperformed the S&P 500 "
                     f"by {stress_outperformance * 100:.2f} "
                     "percentage points during this crisis."
                 )
 
-            elif stress_outperformance < 0:
+            elif performance_status == "underperformed":
                 st.warning(
                     f"Your portfolio underperformed the S&P 500 "
                     f"by {abs(stress_outperformance) * 100:.2f} "

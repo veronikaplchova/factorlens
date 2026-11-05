@@ -9,6 +9,7 @@ from src.stress import (
     calculate_stress_period,
     validate_stress_prices,
     validate_stress_coverage,
+    interpret_stress_performance,
 )
 
 def test_stress_total_return():
@@ -214,3 +215,17 @@ def test_validate_stress_coverage_complete():
         portfolio_dates,
         benchmark_dates,
     ) is None
+
+
+@pytest.mark.parametrize(
+    "outperformance, expected",
+    [
+        (0.09, "outperformed"),
+        (-0.03, "underperformed"),
+        (0.0, "matched"),
+    ],
+)
+def test_interpret_stress_performance(outperformance, expected):
+    """Correctly classify performance relative to SPY."""
+
+    assert interpret_stress_performance(outperformance) == expected
