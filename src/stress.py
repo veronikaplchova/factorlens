@@ -95,3 +95,31 @@ def interpret_stress_performance(outperformance: float) -> str:
         return "underperformed"
 
     return "matched"
+
+
+
+
+def calculate_stress_contributions(
+    asset_returns: pd.DataFrame,
+    weights: list[float],
+) -> pd.DataFrame:
+    """Calculate each asset's daily contribution to portfolio returns."""
+
+    if asset_returns.empty:
+        raise ValueError("Asset returns must not be empty.")
+
+    if len(weights) != len(asset_returns.columns):
+        raise ValueError("Weights must match the number of assets.")
+
+    if not np.isfinite(weights).all():
+        raise ValueError("Portfolio weights must be finite.")
+
+    if any(weight < 0 for weight in weights):
+        raise ValueError("Portfolio weights cannot be negative.")
+
+    if not np.isclose(sum(weights), 1.0):
+        raise ValueError("Portfolio weights must sum to 100%.")
+
+    contributions = asset_returns.mul(weights, axis=1)
+
+    return contributions

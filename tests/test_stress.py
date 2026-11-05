@@ -10,6 +10,7 @@ from src.stress import (
     validate_stress_prices,
     validate_stress_coverage,
     interpret_stress_performance,
+    calculate_stress_contributions,
 )
 
 def test_stress_total_return():
@@ -229,3 +230,104 @@ def test_interpret_stress_performance(outperformance, expected):
     """Correctly classify performance relative to SPY."""
 
     assert interpret_stress_performance(outperformance) == expected
+
+
+def test_calculate_stress_contributions():
+    """Verify individual stocks' daily return contributions."""
+
+    asset_returns = pd.DataFrame({
+        "AAPL": [0.10, -0.05],
+        "MSFT": [-0.02, 0.04],
+    })
+
+    weights = [0.60, 0.40]
+
+    result = calculate_stress_contributions(
+        asset_returns,
+        weights,
+    )
+
+    assert result.loc[0, "AAPL"] == pytest.approx(0.06)
+    assert result.loc[0, "MSFT"] == pytest.approx(-0.008)
+    assert result.loc[1, "AAPL"] == pytest.approx(-0.03)
+    assert result.loc[1, "MSFT"] == pytest.approx(0.016)
+
+
+def test_stress_contributions_invalid_weights():
+    """Reject weights that do not match the number of assets."""
+
+    asset_returns = pd.DataFrame({
+        "AAPL": [0.02, -0.01],
+        "MSFT": [0.03, 0.01],
+    })
+
+    weights = [1.0]
+
+    with pytest.raises(ValueError, match="Weights must match"):
+        calculate_stress_contributions(
+            asset_returns,
+            weights,
+        )
+
+
+def test_stress_contributions_empty_data():
+    """Reject empty historical asset returns."""
+
+    asset_returns = pd.DataFrame()
+    weights = [0.5, 0.5]
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        calculate_stress_contributions(
+            asset_returns,
+            weights,
+        )
+
+
+def test_stress_contributions_weights_sum():
+    """Reject portfolio weights that do not sum to 100%."""
+
+    asset_returns = pd.DataFrame({
+        "AAPL": [0.02, -0.01],
+        "MSFT": [0.03, 0.01],
+    })
+
+    weights = [0.60, 0.60]
+
+    with pytest.raises(ValueError, match="sum to 100%"):
+        calculate_stress_contributions(
+            asset_returns,
+            weights,
+        )
+
+def test_stress_contributions_negative_weights():
+    """Reject negative portfolio allocations."""
+
+    asset_returns = pd.DataFrame({
+        "AAPL": [0.02, -0.01],
+        "MSFT": [0.03, 0.01],
+    })
+
+    weights = [1.20, -0.20]
+
+    with pytest.raises(ValueError, match="cannot be negative"):
+        calculate_stress_contributions(
+            asset_returns,
+            weights,
+        )
+
+@pytest.mark.parametrize("invalid_weight", [np.nan, np.inf, -np.inf])
+def test_stress_contributions_nonfinite_weights(invalid_weight):
+    """Reject missing or infinite portfolio weights."""
+
+    asset_returns = pd.DataFrame({
+        "AAPL": [0.02, -0.01],
+        "MSFT": [0.03, 0.01],
+    })
+
+    weights = [invalid_weight, 0.40]
+
+    with pytest.raises(ValueError, match="must be finite"):
+        calculate_stress_contributions(
+            asset_returns,
+            weights,
+        )
