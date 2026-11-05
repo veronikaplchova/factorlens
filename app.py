@@ -1666,6 +1666,29 @@ with stress_tab:
                     f"{stress_outperformance * 100:+.2f} pp",
                 )
 
+            # Explain portfolio performance relative to SPY.
+            st.subheader("Crisis Performance Insight")
+
+            if stress_outperformance > 0:
+                st.success(
+                    f"Your portfolio outperformed the S&P 500 "
+                    f"by {stress_outperformance * 100:.2f} "
+                    "percentage points during this crisis."
+                )
+
+            elif stress_outperformance < 0:
+                st.warning(
+                    f"Your portfolio underperformed the S&P 500 "
+                    f"by {abs(stress_outperformance) * 100:.2f} "
+                    "percentage points during this crisis."
+                )
+
+            else:
+                st.info(
+                    "Your portfolio matched the S&P 500's "
+                    "total return during this crisis."
+                )
+
 
 
 
