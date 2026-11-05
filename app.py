@@ -1535,16 +1535,23 @@ with stress_tab:
                 & (stress_common_dates <= scenario_end)
             ]
 
-            # Require sufficient shared trading observations.
-            expected_trading_days = len(
-                pd.bdate_range(scenario_start, scenario_end)
+            
+            # Check portfolio coverage against SPY trading dates.
+            benchmark_crisis_dates = stress_benchmark_returns.loc[
+                scenario_start:scenario_end
+            ].index
+
+            missing_trading_days = benchmark_crisis_dates.difference(
+                stress_crisis_dates
             )
 
-            if len(stress_crisis_dates) < 0.90 * expected_trading_days:
+            if len(missing_trading_days) > 0:
                 raise ValueError(
-                    "Insufficient overlapping historical trading "
-                    "days for a reliable crisis comparison."
+                    f"Portfolio data is missing "
+                    f"{len(missing_trading_days)} trading days "
+                    "available in the S&P 500 benchmark."
                 )
+
 
 
             stress_aligned_portfolio = stress_aligned_portfolio.loc[
