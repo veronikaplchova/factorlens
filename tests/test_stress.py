@@ -5,8 +5,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.stress import calculate_stress_period, validate_stress_prices
-
+from src.stress import (
+    calculate_stress_period,
+    validate_stress_prices,
+    validate_stress_coverage,
+)
 
 def test_stress_total_return():
     dates = pd.date_range("2020-03-01", periods=3)
@@ -171,3 +174,43 @@ def test_validate_stress_prices_valid():
     })
 
     assert validate_stress_prices(prices) is None
+
+def test_validate_stress_coverage_missing_dates():
+    """Reject portfolio data with missing benchmark trading dates."""
+
+    portfolio_dates = pd.to_datetime([
+        "2020-03-02",
+        "2020-03-04",
+    ])
+
+    benchmark_dates = pd.to_datetime([
+        "2020-03-02",
+        "2020-03-03",
+        "2020-03-04",
+    ])
+
+    with pytest.raises(ValueError, match="missing 1 trading days"):
+        validate_stress_coverage(
+            portfolio_dates,
+            benchmark_dates,
+        )
+
+def test_validate_stress_coverage_complete():
+    """Accept portfolio data covering all benchmark trading dates."""
+
+    portfolio_dates = pd.to_datetime([
+        "2020-03-02",
+        "2020-03-03",
+        "2020-03-04",
+    ])
+
+    benchmark_dates = pd.to_datetime([
+        "2020-03-02",
+        "2020-03-03",
+        "2020-03-04",
+    ])
+
+    assert validate_stress_coverage(
+        portfolio_dates,
+        benchmark_dates,
+    ) is None

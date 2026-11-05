@@ -67,3 +67,17 @@ def validate_stress_prices(prices: pd.DataFrame) -> None:
 
     if (prices <= 0).any().any():
         raise ValueError("Historical prices must be positive.")
+
+def validate_stress_coverage(
+    portfolio_dates: pd.DatetimeIndex,
+    benchmark_dates: pd.DatetimeIndex,
+) -> None:
+    """Ensure portfolio data covers all benchmark trading dates."""
+
+    missing_dates = benchmark_dates.difference(portfolio_dates)
+
+    if len(missing_dates) > 0:
+        raise ValueError(
+            f"Portfolio data is missing {len(missing_dates)} "
+            "trading days available in the S&P 500 benchmark."
+        )

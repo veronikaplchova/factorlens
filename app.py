@@ -23,11 +23,14 @@ from src.returns import calculate_daily_returns, calculate_portfolio_returns
 from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
+
 from src.stress import (
     STRESS_PERIODS,
     calculate_stress_period,
     validate_stress_prices,
+    validate_stress_coverage,
 )
+
 
 
  
@@ -1541,16 +1544,13 @@ with stress_tab:
                 scenario_start:scenario_end
             ].index
 
-            missing_trading_days = benchmark_crisis_dates.difference(
-                stress_crisis_dates
+            
+            # Validate portfolio coverage using our tested function.
+            validate_stress_coverage(
+                stress_crisis_dates,
+                benchmark_crisis_dates,
             )
 
-            if len(missing_trading_days) > 0:
-                raise ValueError(
-                    f"Portfolio data is missing "
-                    f"{len(missing_trading_days)} trading days "
-                    "available in the S&P 500 benchmark."
-                )
 
 
 
