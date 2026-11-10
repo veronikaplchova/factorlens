@@ -23,3 +23,45 @@ def calculate_rolling_volatility(
     )
 
     return rolling_volatility
+
+
+
+
+def classify_market_regimes(
+    rolling_volatility: pd.Series,
+    threshold_window: int = 126,
+) -> pd.Series:
+    """Classify market volatility using a historical median."""
+
+    if threshold_window < 2:
+        raise ValueError("Threshold window must be at least 2.")
+
+    if rolling_volatility.empty:
+        raise ValueError("Rolling volatility must not be empty.")
+
+    # Use only previous observations to estimate the threshold.
+    historical_threshold = (
+        rolling_volatility.shift(1)
+        .rolling(window=threshold_window)
+        .median()
+    )
+
+    regimes = pd.Series(
+        pd.NA,
+        index=rolling_volatility.index,
+        dtype="object",
+    )
+
+    valid_dates = (
+        rolling_volatility.notna()
+        & historical_threshold.notna()
+    )
+
+    regimes.loc[valid_dates] = np.where(
+        rolling_volatility.loc[valid_dates]
+        > historical_threshold.loc[valid_dates],
+        "High Volatility",
+        "Low Volatility",
+    )
+
+    return regimes
