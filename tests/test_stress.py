@@ -11,6 +11,7 @@ from src.stress import (
     validate_stress_coverage,
     interpret_stress_performance,
     calculate_stress_contributions,
+    calculate_cumulative_stress_contributions,
 )
 
 def test_stress_total_return():
@@ -331,3 +332,50 @@ def test_stress_contributions_nonfinite_weights(invalid_weight):
             asset_returns,
             weights,
         )
+
+def test_cumulative_stress_contributions_sum():
+    """Stock contributions must sum to total portfolio return."""
+
+    asset_returns = pd.DataFrame({
+        "AAPL": [0.10, -0.05, 0.02],
+        "MSFT": [-0.02, 0.04, -0.01],
+    })
+
+    weights = [0.60, 0.40]
+
+    daily_contributions = calculate_stress_contributions(
+        asset_returns,
+        weights,
+    )
+
+    cumulative_contributions = (
+        calculate_cumulative_stress_contributions(
+            daily_contributions
+        )
+    )
+
+    portfolio_daily_returns = daily_contributions.sum(axis=1)
+    total_portfolio_return = (
+        (1 + portfolio_daily_returns).prod() - 1
+    )
+
+    assert cumulative_contributions.sum() == pytest.approx(
+        total_portfolio_return
+    )
+
+
+def test_cumulative_stress_contributions_values():
+    """Verify compounded contributions for individual stocks."""
+
+    daily_contributions = pd.DataFrame({
+        "AAPL": [0.06, -0.03],
+        "MSFT": [-0.008, 0.016],
+    })
+
+    result = calculate_cumulative_stress_contributions(
+        daily_contributions
+    )
+
+    assert result["AAPL"] == pytest.approx(0.02844)
+    assert result["MSFT"] == pytest.approx(0.008832)
+

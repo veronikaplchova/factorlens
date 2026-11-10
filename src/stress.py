@@ -120,6 +120,32 @@ def calculate_stress_contributions(
     if not np.isclose(sum(weights), 1.0):
         raise ValueError("Portfolio weights must sum to 100%.")
 
+
     contributions = asset_returns.mul(weights, axis=1)
 
     return contributions
+
+
+
+def calculate_cumulative_stress_contributions(
+    daily_contributions: pd.DataFrame,
+) -> pd.Series:
+    """Attribute compounded portfolio return to individual assets."""
+
+    if daily_contributions.empty:
+        raise ValueError("Daily contributions must not be empty.")
+
+    portfolio_daily_returns = daily_contributions.sum(axis=1)
+
+    wealth_before_day = (
+        (1 + portfolio_daily_returns)
+        .cumprod()
+        .shift(1, fill_value=1.0)
+    )
+
+    cumulative_contributions = daily_contributions.mul(
+        wealth_before_day,
+        axis=0,
+    ).sum(axis=0)
+
+    return cumulative_contributions

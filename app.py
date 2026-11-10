@@ -25,13 +25,17 @@ from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
 
 
+
 from src.stress import (
     STRESS_PERIODS,
     calculate_stress_period,
     validate_stress_prices,
     validate_stress_coverage,
     interpret_stress_performance,
+    calculate_stress_contributions,
+    calculate_cumulative_stress_contributions,
 )
+
 
 
 
@@ -1622,6 +1626,81 @@ with stress_tab:
                 stress_results["total_return"]
                 - stress_benchmark_results["total_return"]
             )
+
+            # Use the same crisis dates as the benchmark comparison.
+            stress_aligned_asset_returns = stress_daily_returns.loc[
+                stress_crisis_dates, tickers
+            ]
+
+            # Calculate each holding's daily return contribution.
+            stress_asset_contributions = calculate_stress_contributions(
+                stress_aligned_asset_returns,
+                weights,
+            )
+
+            # Attribute the compounded crisis return to each holding.
+            stress_cumulative_contributions = (
+                calculate_cumulative_stress_contributions(
+                    stress_asset_contributions
+                )
+            )
+
+            # Verify that asset contributions reconcile with portfolio return.
+            attribution_total = stress_cumulative_contributions.sum()
+
+            if not np.isclose(
+                attribution_total,
+                stress_results["total_return"],
+                rtol=1e-8,
+                atol=1e-10,
+            ):
+                raise ValueError(
+                    "Stock contributions do not reconcile "
+                    "with the portfolio's crisis return."
+                )
+            
+            # Visualize individual holdings' crisis contributions.
+            st.subheader("Stock Contributions During the Crisis")
+
+            attribution_chart_data = (
+                stress_cumulative_contributions
+                .mul(100)
+                .sort_values()
+            )
+
+            fig_attribution = go.Figure()
+
+            fig_attribution.add_trace(
+                go.Bar(
+                    x=attribution_chart_data.index,
+                    y=attribution_chart_data.values,
+                    marker_color=[
+                        PURPLE if value >= 0 else RED
+                        for value in attribution_chart_data.values
+                    ],
+                    text=[
+                        f"{value:+.2f} pp"
+                        for value in attribution_chart_data.values
+                    ],
+                    textposition="outside",
+                    name="Return Contribution",
+                )
+            )
+
+            fig_attribution.update_layout(
+                xaxis_title="Stock",
+                yaxis_title="Contribution (percentage points)",
+                showlegend=False,
+            )
+
+            st.plotly_chart(
+                style_figure(fig_attribution, 400),
+                width="stretch",
+                key="stress_attribution_chart",
+            )
+
+
+
             st.subheader("Portfolio Stress Results")
 
             stress_c1, stress_c2, stress_c3 = st.columns(3)
