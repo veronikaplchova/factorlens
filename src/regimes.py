@@ -65,3 +65,30 @@ def classify_market_regimes(
     )
 
     return regimes
+
+
+
+def calculate_regime_performance(
+    regime_data: pd.DataFrame,
+) -> pd.DataFrame:
+    """Summarize portfolio returns across market regimes."""
+
+    required_columns = {"Portfolio Return", "Market Regime"}
+
+    if not required_columns.issubset(regime_data.columns):
+        raise ValueError("Required regime analysis columns are missing.")
+
+    if regime_data.empty:
+        raise ValueError("Regime analysis data must not be empty.")
+
+    summary = (
+        regime_data.groupby("Market Regime")["Portfolio Return"]
+        .agg(
+            Average_Daily_Return="mean",
+            Annualized_Volatility=lambda x: x.std() * np.sqrt(252),
+            Observations="count",
+        )
+    )
+
+    return summary
+

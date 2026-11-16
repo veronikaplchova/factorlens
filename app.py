@@ -24,10 +24,13 @@ from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
 
+
 from src.regimes import (
     calculate_rolling_volatility,
     classify_market_regimes,
+    calculate_regime_performance,
 )
+
 
 from src.stress import (
     STRESS_PERIODS,
@@ -392,6 +395,13 @@ market_regimes = classify_market_regimes(
     market_rolling_volatility,
     threshold_window=126,
 )
+
+# Align portfolio returns with market regime classifications.
+regime_analysis_data = pd.DataFrame({
+    "Portfolio Return": portfolio_returns,
+    "Market Regime": market_regimes,
+}).dropna()
+
 
 
 common_dates = portfolio_returns.index.intersection(
@@ -1887,3 +1897,33 @@ with regimes_tab:
         )
 
 
+
+    # Compare portfolio performance across market regimes.
+    st.subheader("Portfolio Performance by Market Regime")
+
+    if regime_analysis_data.empty:
+        st.info(
+            "Insufficient historical data to compare "
+            "portfolio performance across market regimes."
+        )
+    else:
+        regime_performance = calculate_regime_performance(
+            regime_analysis_data
+        )
+
+        regime_display = regime_performance.rename(
+            columns={
+                "Average_Daily_Return": "Average Daily Return",
+                "Annualized_Volatility": "Annualized Volatility",
+                "Observations": "Trading Days",
+            }
+        )
+
+        st.dataframe(
+            regime_display.style.format({
+                "Average Daily Return": "{:.2%}",
+                "Annualized Volatility": "{:.2%}",
+                "Trading Days": "{:.0f}",
+            }),
+            width="stretch",
+        )

@@ -8,6 +8,7 @@ import pytest
 from src.regimes import (
     calculate_rolling_volatility,
     classify_market_regimes,
+    calculate_regime_performance,
 )
 
 def test_rolling_volatility():
@@ -125,3 +126,66 @@ def test_classify_market_regimes_missing_values():
     assert result.iloc[5] == "High Volatility"
     assert result.iloc[6] == "Low Volatility"
 
+
+def test_calculate_regime_performance():
+    """Verify performance statistics for each market regime."""
+
+    regime_data = pd.DataFrame({
+        "Portfolio Return": [
+            0.01, -0.03, 0.02, 0.01
+        ],
+        "Market Regime": [
+            "Low Volatility",
+            "High Volatility",
+            "Low Volatility",
+            "High Volatility",
+        ],
+    })
+
+    result = calculate_regime_performance(regime_data)
+
+    assert result.loc[
+        "Low Volatility", "Average_Daily_Return"
+    ] == pytest.approx(0.015)
+
+    assert result.loc[
+        "High Volatility", "Average_Daily_Return"
+    ] == pytest.approx(-0.01)
+
+    assert result.loc[
+        "Low Volatility", "Annualized_Volatility"
+    ] == pytest.approx(
+        np.std([0.01, 0.02], ddof=1) * np.sqrt(252)
+    )
+
+    assert result.loc["Low Volatility", "Observations"] == 2
+    assert result.loc["High Volatility", "Observations"] == 2
+
+
+@pytest.mark.parametrize(
+    "missing_column",
+    ["Portfolio Return", "Market Regime"],
+)
+def test_regime_performance_missing_columns(missing_column):
+    """Reject datasets missing required analysis columns."""
+
+    regime_data = pd.DataFrame({
+        "Portfolio Return": [0.01, -0.02],
+        "Market Regime": ["Low Volatility", "High Volatility"],
+    })
+
+    regime_data = regime_data.drop(columns=[missing_column])
+
+    with pytest.raises(ValueError, match="Required regime analysis columns"):
+        calculate_regime_performance(regime_data)
+
+
+def test_regime_performance_empty_data():
+    """Reject empty market-regime analysis data."""
+
+    regime_data = pd.DataFrame(
+        columns=["Portfolio Return", "Market Regime"]
+    )
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        calculate_regime_performance(regime_data)
