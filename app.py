@@ -1932,14 +1932,54 @@ with regimes_tab:
         )
 
         # Display the regime comparison table.
-        st.dataframe(
-            regime_display.style.format({
-                "Average Daily Return": "{:.2%}",
-                "Annualized Volatility": "{:.2%}",
-                "Trading Days": "{:.0f}",
-            }),
-            width="stretch",
+        
+        # Display a dark-themed regime performance table.
+        regime_table = go.Figure(
+            data=[
+                go.Table(
+                    header=dict(
+                        values=[
+                            "Market Regime",
+                            "Average Daily Return",
+                            "Annualized Volatility",
+                            "Trading Days",
+                        ],
+                        fill_color="#25324A",
+                        font=dict(color="#E8EEFA", size=13),
+                        align="left",
+                        height=40,
+                    ),
+                    cells=dict(
+                        values=[
+                            regime_display.index.tolist(),
+                            [
+                                f"{value:.2%}"
+                                for value in regime_display["Average Daily Return"]
+                            ],
+                            [
+                                f"{value:.2%}"
+                                for value in regime_display["Annualized Volatility"]
+                            ],
+                            [
+                                f"{value:.0f}"
+                                for value in regime_display["Trading Days"]
+                            ],
+                        ],
+                        fill_color="#151F33",
+                        font=dict(color="#E8EEFA", size=13),
+                        align="left",
+                        height=40,
+                    ),
+                )
+            ]
         )
+
+        st.plotly_chart(
+            style_figure(regime_table, 180),
+            width="stretch",
+            key="regime_performance_table",
+        )
+
 
         # Explain differences in portfolio performance across regimes.
         if {
