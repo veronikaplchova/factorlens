@@ -303,15 +303,15 @@ with st.sidebar:
         if key not in st.session_state:
             st.session_state[key] = defaults[i]
 
+        
         weight = st.number_input(
             f"{COMPANIES[ticker]} ({ticker})",
             min_value=0.0,
             max_value=100.0,
             step=1.0,
             key=key,
-            on_change=on_weight_changed,
-            args=(ticker,),
         )
+
 
         weights_pct.append(weight)
 
@@ -427,62 +427,51 @@ def load_cached_ff5(start: str, end: str) -> pd.DataFrame:
 
 
 
+# Fama-French data may lag behind current market dates. A missing or
+# insufficient factor sample must not disable independent dashboard tabs.
+ff_models_available = False
+ff_unavailable_reason = (
+    "Fama–French factor data is unavailable for this analysis period. "
+    "Try selecting an earlier or longer date range."
+)
+
 try:
     ff5_data = load_cached_ff5(
         start_date.isoformat(),
         end_date.isoformat(),
     )
-except ValueError as exc:
-    st.warning(
-        "Fama–French five-factor data is unavailable "
-        "for the selected analysis period. "
-        "Try an earlier date range for factor analysis."
-    )
+except ValueError:
     ff5_data = pd.DataFrame()
 
+if not ff5_data.empty:
+    # Compare FF3 and FF5 on identical daily observations.
+    shared_dates = portfolio_returns.index.intersection(ff5_data.index)
+    if len(shared_dates) >= 30:
+        shared_returns = portfolio_returns.loc[shared_dates]
+        shared_factors = ff5_data.loc[shared_dates]
 
-# Use common dates to make FF3 and FF5 comparable.
-
-shared_dates = portfolio_returns.index.intersection(
-    ff5_data.index
-)
-
-
-
-
-
-
-
-# Use identical observations and shared factors for both models.
-shared_returns = portfolio_returns.loc[shared_dates]
-shared_factors = ff5_data.loc[shared_dates]
-
-ff3_results = calculate_ff3(
-    shared_returns,
-    shared_factors,
-)
-
-ff5_results = calculate_ff5(
-    shared_returns,
-    shared_factors,
-)
-
-
-# Calculate FF5 statistical inference using HAC standard errors.
-ff5_diagnostics = calculate_factor_diagnostics(
-    shared_returns,
-    shared_factors,
-    factor_columns=[
-        "Mkt-RF",
-        "SMB",
-        "HML",
-        "RMW",
-        "CMA",
-    ],
-    max_lags=5,
-)
-
-
+        try:
+            ff3_results = calculate_ff3(shared_returns, shared_factors)
+            ff5_results = calculate_ff5(shared_returns, shared_factors)
+            ff5_diagnostics = calculate_factor_diagnostics(
+                shared_returns,
+                shared_factors,
+                factor_columns=["Mkt-RF", "SMB", "HML", "RMW", "CMA"],
+                max_lags=5,
+            )
+        except (ValueError, np.linalg.LinAlgError) as exc:
+            ff_unavailable_reason = (
+                "Fama–French models could not be estimated for the "
+                f"selected dates: {exc}"
+            )
+        else:
+            ff_models_available = True
+    else:
+        ff_unavailable_reason = (
+            "Only " + str(len(shared_dates)) + " shared trading days have "
+            "Fama–French data. At least 30 are required for this analysis. "
+            "Try selecting an earlier or longer date range."
+        )
 
 comparison = pd.DataFrame({
     "Portfolio": calculate_cumulative_growth(
@@ -976,439 +965,443 @@ with factor_tab:
     )
 
 
-    st.divider()
-
-    st.subheader("Fama-French Three-Factor Model")
-    st.caption(
-        "Explore your portfolio's historical exposure to "
-        "market, size, and value factors."
-    )
-
-    ff_c1, ff_c2 = st.columns(2)
-
-    with ff_c1:
-        st.metric(
-            "FF3 Daily Alpha",
-            f"{ff3_results['alpha']:.3%}",
-        )
-
-    with ff_c2:
-        st.metric(
-            "FF3 R-squared",
-            f"{ff3_results['r_squared']:.2%}",
-        )
-
-    exposure_data = pd.DataFrame(
-        {
-            "Factor": [
-                "Market",
-                "Size (SMB)",
-                "Value (HML)",
-            ],
-            "Loading": [
-                ff3_results["market_beta"],
-                ff3_results["smb_beta"],
-                ff3_results["hml_beta"],
-            ],
-        }
-    )
-
-    fig_ff3 = go.Figure()
-
-    fig_ff3.add_trace(
-        go.Bar(
-            x=exposure_data["Factor"],
-            y=exposure_data["Loading"],
-            marker_color=[BLUE, PURPLE, "#67D6C0"],
-            text=exposure_data["Loading"].round(2),
-            textposition="outside",
-            name="Factor Exposure",
-        )
-    )
-
-    fig_ff3.add_hline(
-        y=0,
-        line_color="#8793A8",
-        line_width=1,
-    )
-
-    fig_ff3.update_layout(
-        xaxis_title="Fama-French Factor",
-        yaxis_title="Estimated Factor Loading",
-        showlegend=False,
-    )
-
-    st.plotly_chart(
-        style_figure(fig_ff3, 420),
-        width="stretch",
-        key="ff3_exposure_chart",
-    )
-
-
-    st.subheader("Understanding Your Factor Exposures")
-
-    market_loading = ff3_results["market_beta"]
-    size_loading = ff3_results["smb_beta"]
-    value_loading = ff3_results["hml_beta"]
-
-    if market_loading > 1.1:
-        market_text = "Higher sensitivity to market movements."
-    elif market_loading < 0.9:
-        market_text = "Lower sensitivity to market movements."
+    if not ff_models_available:
+        st.divider()
+        st.info(ff_unavailable_reason)
     else:
-        market_text = "Market sensitivity close to one."
+        st.divider()
 
-    if size_loading > 0.1:
-        size_text = "Positive exposure to the small-cap factor."
-    elif size_loading < -0.1:
-        size_text = "Negative exposure to the small-cap factor, suggesting a large-cap tilt."
-    else:
-        size_text = "Relatively limited estimated size exposure."
-
-    if value_loading > 0.1:
-        value_text = "Positive exposure to the value factor."
-    elif value_loading < -0.1:
-        value_text = "Negative exposure to the value factor, suggesting a growth tilt."
-    else:
-        value_text = "Relatively limited estimated value exposure."
-
-    st.info(
-        f"**Market ({market_loading:.2f}):** {market_text}"
-    )
-
-    st.info(
-        f"**Size / SMB ({size_loading:.2f}):** {size_text}"
-    )
-
-    st.info(
-        f"**Value / HML ({value_loading:.2f}):** {value_text}"
-    )
-
-    st.caption(
-        "Factor loadings describe historical return sensitivities, "
-        "not actual portfolio holdings. Interpretations are descriptive; "
-        "statistical significance has not yet been assessed."
-    )
-
-
-    st.divider()
-
-    st.subheader("Fama-French Five-Factor Model")
-    st.caption(
-        "Explore how market, size, value, profitability, "
-        "and investment factors relate to portfolio returns."
-    )
-
-    ff5_c1, ff5_c2 = st.columns(2)
-
-    with ff5_c1:
-        st.metric(
-            "FF5 Daily Alpha",
-            f"{ff5_results['alpha']:.3%}",
+        st.subheader("Fama-French Three-Factor Model")
+        st.caption(
+            "Explore your portfolio's historical exposure to "
+            "market, size, and value factors."
         )
 
-    with ff5_c2:
-        st.metric(
-            "FF5 R-squared",
-            f"{ff5_results['r_squared']:.2%}",
-        )
+        ff_c1, ff_c2 = st.columns(2)
 
-    ff5_exposures = pd.DataFrame(
-        {
-            "Factor": [
-                "Market",
-                "Size (SMB)",
-                "Value (HML)",
-                "Profitability (RMW)",
-                "Investment (CMA)",
-            ],
-            "Loading": [
-                ff5_results["market_beta"],
-                ff5_results["smb_beta"],
-                ff5_results["hml_beta"],
-                ff5_results["rmw_beta"],
-                ff5_results["cma_beta"],
-            ],
-        }
-    )
+        with ff_c1:
+            st.metric(
+                "FF3 Daily Alpha",
+                f"{ff3_results['alpha']:.3%}",
+            )
 
-    fig_ff5 = go.Figure()
+        with ff_c2:
+            st.metric(
+                "FF3 R-squared",
+                f"{ff3_results['r_squared']:.2%}",
+            )
 
-    fig_ff5.add_trace(
-        go.Bar(
-            x=ff5_exposures["Factor"],
-            y=ff5_exposures["Loading"],
-            marker_color=[
-                BLUE, PURPLE, "#67D6C0",
-                "#F4B860", "#E88DC7",
-            ],
-            text=ff5_exposures["Loading"].round(2),
-            textposition="outside",
-        )
-    )
-
-    fig_ff5.add_hline(
-        y=0,
-        line_color="#8793A8",
-        line_width=1,
-    )
-
-    fig_ff5.update_layout(
-        xaxis_title="Fama-French Factor",
-        yaxis_title="Estimated Factor Loading",
-        showlegend=False,
-    )
-
-    st.plotly_chart(
-        style_figure(fig_ff5, 430),
-        width="stretch",
-        key="ff5_exposure_chart",
-    )
-
-    st.divider()
-
-    st.subheader("Model Comparison: FF3 vs. FF5")
-    st.caption(
-        "Compare explanatory power using the same historical dates. "
-        "Adjusted R-squared accounts for the number of factors."
-    )
-
-    def adjusted_r_squared(r2, n, k):
-        """Adjust R-squared for the number of explanatory factors."""
-        if n <= k + 1 or not np.isfinite(r2):
-            return np.nan
-        return 1 - (1 - r2) * (n - 1) / (n - k - 1)
-
-    ff3_adj = adjusted_r_squared(
-        ff3_results["r_squared"],
-        ff3_results["n_observations"],
-        3,
-    )
-
-    ff5_adj = adjusted_r_squared(
-        ff5_results["r_squared"],
-        ff5_results["n_observations"],
-        5,
-    )
-
-    comparison = pd.DataFrame(
-        {
-            "Model": ["FF3", "FF5"],
-            "R-squared": [
-                ff3_results["r_squared"],
-                ff5_results["r_squared"],
-            ],
-            "Adjusted R-squared": [ff3_adj, ff5_adj],
-            "Daily Alpha": [
-                ff3_results["alpha"],
-                ff5_results["alpha"],
-            ],
-        }
-    )
-
-    st.dataframe(
-        comparison.style.format(
+        exposure_data = pd.DataFrame(
             {
-                "R-squared": "{:.2%}",
-                "Adjusted R-squared": "{:.2%}",
-                "Daily Alpha": "{:.3%}",
+                "Factor": [
+                    "Market",
+                    "Size (SMB)",
+                    "Value (HML)",
+                ],
+                "Loading": [
+                    ff3_results["market_beta"],
+                    ff3_results["smb_beta"],
+                    ff3_results["hml_beta"],
+                ],
             }
-        ),
-        hide_index=True,
-        width="stretch",
-    )
-
-
-    st.subheader("Model Comparison Insights")
-
-    improvement = ff5_adj - ff3_adj
-
-    if not np.isfinite(improvement):
-        st.warning(
-            "Insufficient data to compare adjusted R-squared."
-        )
-    elif improvement > 0:
-        st.success(
-            f"**FF5 provides a better adjusted fit.** "
-            f"Adjusted R² increases by {improvement:.2%} "
-            "in percentage-point terms, suggesting that "
-            "profitability and investment factors add "
-            "explanatory power over this historical period."
-        )
-    elif improvement < 0:
-        st.info(
-            f"**FF3 provides a better adjusted fit.** "
-            f"Adjusted R² decreases by {abs(improvement):.2%} "
-            "in percentage-point terms when adding "
-            "profitability and investment factors."
-        )
-    else:
-        st.info(
-            "Both models have the same adjusted R-squared."
         )
 
-    st.caption(
-        "These comparisons describe in-sample regression fit. "
-        "They do not establish predictive performance or "
-        "statistical significance."
-    )
+        fig_ff3 = go.Figure()
 
-    st.divider()
-
-    st.subheader("Factor Statistical Significance")
-    st.caption(
-        "Fama-French five-factor estimates with HAC "
-        "standard errors and 95% confidence intervals."
-    )
-
-    significance_table = ff5_diagnostics.copy()
-
-    significance_table["Factor"] = [
-        "Alpha",
-        "Market",
-        "Size (SMB)",
-        "Value (HML)",
-        "Profitability (RMW)",
-        "Investment (CMA)",
-    ]
-
-    significance_table["Significant at 5%"] = (
-        significance_table["p-value"] < 0.05
-    ).map({True: "Yes", False: "No"})
-
-    significance_table = significance_table[
-        [
-            "Factor",
-            "Coefficient",
-            "Standard Error",
-            "t-statistic",
-            "p-value",
-            "CI Lower",
-            "CI Upper",
-            "Significant at 5%",
-        ]
-    ]
-
-    st.dataframe(
-        significance_table.style.format(
-            {
-                "Coefficient": "{:.3f}",
-                "Standard Error": "{:.3f}",
-                "t-statistic": "{:.2f}",
-                "p-value": "{:.4f}",
-                "CI Lower": "{:.3f}",
-                "CI Upper": "{:.3f}",
-            }
-        ),
-        hide_index=True,
-        width="stretch",
-    )
-
-    st.subheader("Factor Confidence Intervals")
-
-    st.caption(
-        "Purple dots show estimated factor loadings. "
-        "Blue lines represent HAC-based 95% confidence intervals."
-    )
-
-    ci_data = ff5_diagnostics.drop(index="const").copy()
-
-    ci_labels = {
-        "Mkt-RF": "Market",
-        "SMB": "Size (SMB)",
-        "HML": "Value (HML)",
-        "RMW": "Profitability (RMW)",
-        "CMA": "Investment (CMA)",
-    }
-
-    ci_data["Factor"] = ci_data.index.map(ci_labels)
-    ci_data = ci_data.iloc[::-1]
-
-    fig_ci = go.Figure()
-
-    fig_ci.add_trace(
-        go.Scatter(
-            x=ci_data["Coefficient"],
-            y=ci_data["Factor"],
-            mode="markers",
-            marker=dict(color=PURPLE, size=11),
-            error_x=dict(
-                type="data",
-                symmetric=False,
-                array=ci_data["CI Upper"] - ci_data["Coefficient"],
-                arrayminus=ci_data["Coefficient"] - ci_data["CI Lower"],
-                color=BLUE,
-                thickness=2,
-                width=6,
-            ),
-            name="95% Confidence Interval",
+        fig_ff3.add_trace(
+            go.Bar(
+                x=exposure_data["Factor"],
+                y=exposure_data["Loading"],
+                marker_color=[BLUE, PURPLE, "#67D6C0"],
+                text=exposure_data["Loading"].round(2),
+                textposition="outside",
+                name="Factor Exposure",
+            )
         )
-    )
 
-    fig_ci.add_vline(
-        x=0,
-        line_dash="dash",
-        line_color="#8793A8",
-    )
+        fig_ff3.add_hline(
+            y=0,
+            line_color="#8793A8",
+            line_width=1,
+        )
 
-    fig_ci.update_layout(
-        xaxis_title="Estimated Factor Loading",
-        yaxis_title="",
-        showlegend=False,
-    )
+        fig_ff3.update_layout(
+            xaxis_title="Fama-French Factor",
+            yaxis_title="Estimated Factor Loading",
+            showlegend=False,
+        )
 
-    st.plotly_chart(
-        style_figure(fig_ci, 400),
-        width="stretch",
-        key="ff5_confidence_interval_chart",
-    )
+        st.plotly_chart(
+            style_figure(fig_ff3, 420),
+            width="stretch",
+            key="ff3_exposure_chart",
+        )
 
 
-    st.subheader("Statistical Significance Insights")
+        st.subheader("Understanding Your Factor Exposures")
 
-    factor_names = {
-        "Mkt-RF": "Market",
-        "SMB": "Size",
-        "HML": "Value",
-        "RMW": "Profitability",
-        "CMA": "Investment",
-    }
+        market_loading = ff3_results["market_beta"]
+        size_loading = ff3_results["smb_beta"]
+        value_loading = ff3_results["hml_beta"]
 
-    significant_factors = []
-    insignificant_factors = []
-
-    for factor, name in factor_names.items():
-        p_value = ff5_diagnostics.loc[factor, "p-value"]
-
-        if p_value < 0.05:
-            significant_factors.append(name)
+        if market_loading > 1.1:
+            market_text = "Higher sensitivity to market movements."
+        elif market_loading < 0.9:
+            market_text = "Lower sensitivity to market movements."
         else:
-            insignificant_factors.append(name)
+            market_text = "Market sensitivity close to one."
 
-    st.info(
-        "**Statistically significant exposures (5% level):** "
-        + (
-            ", ".join(significant_factors)
-            if significant_factors
-            else "None"
+        if size_loading > 0.1:
+            size_text = "Positive exposure to the small-cap factor."
+        elif size_loading < -0.1:
+            size_text = "Negative exposure to the small-cap factor, suggesting a large-cap tilt."
+        else:
+            size_text = "Relatively limited estimated size exposure."
+
+        if value_loading > 0.1:
+            value_text = "Positive exposure to the value factor."
+        elif value_loading < -0.1:
+            value_text = "Negative exposure to the value factor, suggesting a growth tilt."
+        else:
+            value_text = "Relatively limited estimated value exposure."
+
+        st.info(
+            f"**Market ({market_loading:.2f}):** {market_text}"
         )
-    )
 
-    st.info(
-        "**Not statistically significant (5% level):** "
-        + (
-            ", ".join(insignificant_factors)
-            if insignificant_factors
-            else "None"
+        st.info(
+            f"**Size / SMB ({size_loading:.2f}):** {size_text}"
         )
-    )
 
-    st.caption(
-        "Significance is based on HAC standard errors "
-        "and individual two-sided tests at the 5% level. "
-        "These results do not prove causation, "
-        "economic importance, or future performance."
-    )
+        st.info(
+            f"**Value / HML ({value_loading:.2f}):** {value_text}"
+        )
+
+        st.caption(
+            "Factor loadings describe historical return sensitivities, "
+            "not actual portfolio holdings. Interpretations are descriptive; "
+            "statistical significance has not yet been assessed."
+        )
+
+
+        st.divider()
+
+        st.subheader("Fama-French Five-Factor Model")
+        st.caption(
+            "Explore how market, size, value, profitability, "
+            "and investment factors relate to portfolio returns."
+        )
+
+        ff5_c1, ff5_c2 = st.columns(2)
+
+        with ff5_c1:
+            st.metric(
+                "FF5 Daily Alpha",
+                f"{ff5_results['alpha']:.3%}",
+            )
+
+        with ff5_c2:
+            st.metric(
+                "FF5 R-squared",
+                f"{ff5_results['r_squared']:.2%}",
+            )
+
+        ff5_exposures = pd.DataFrame(
+            {
+                "Factor": [
+                    "Market",
+                    "Size (SMB)",
+                    "Value (HML)",
+                    "Profitability (RMW)",
+                    "Investment (CMA)",
+                ],
+                "Loading": [
+                    ff5_results["market_beta"],
+                    ff5_results["smb_beta"],
+                    ff5_results["hml_beta"],
+                    ff5_results["rmw_beta"],
+                    ff5_results["cma_beta"],
+                ],
+            }
+        )
+
+        fig_ff5 = go.Figure()
+
+        fig_ff5.add_trace(
+            go.Bar(
+                x=ff5_exposures["Factor"],
+                y=ff5_exposures["Loading"],
+                marker_color=[
+                    BLUE, PURPLE, "#67D6C0",
+                    "#F4B860", "#E88DC7",
+                ],
+                text=ff5_exposures["Loading"].round(2),
+                textposition="outside",
+            )
+        )
+
+        fig_ff5.add_hline(
+            y=0,
+            line_color="#8793A8",
+            line_width=1,
+        )
+
+        fig_ff5.update_layout(
+            xaxis_title="Fama-French Factor",
+            yaxis_title="Estimated Factor Loading",
+            showlegend=False,
+        )
+
+        st.plotly_chart(
+            style_figure(fig_ff5, 430),
+            width="stretch",
+            key="ff5_exposure_chart",
+        )
+
+        st.divider()
+
+        st.subheader("Model Comparison: FF3 vs. FF5")
+        st.caption(
+            "Compare explanatory power using the same historical dates. "
+            "Adjusted R-squared accounts for the number of factors."
+        )
+
+        def adjusted_r_squared(r2, n, k):
+            """Adjust R-squared for the number of explanatory factors."""
+            if n <= k + 1 or not np.isfinite(r2):
+                return np.nan
+            return 1 - (1 - r2) * (n - 1) / (n - k - 1)
+
+        ff3_adj = adjusted_r_squared(
+            ff3_results["r_squared"],
+            ff3_results["n_observations"],
+            3,
+        )
+
+        ff5_adj = adjusted_r_squared(
+            ff5_results["r_squared"],
+            ff5_results["n_observations"],
+            5,
+        )
+
+        comparison = pd.DataFrame(
+            {
+                "Model": ["FF3", "FF5"],
+                "R-squared": [
+                    ff3_results["r_squared"],
+                    ff5_results["r_squared"],
+                ],
+                "Adjusted R-squared": [ff3_adj, ff5_adj],
+                "Daily Alpha": [
+                    ff3_results["alpha"],
+                    ff5_results["alpha"],
+                ],
+            }
+        )
+
+        st.dataframe(
+            comparison.style.format(
+                {
+                    "R-squared": "{:.2%}",
+                    "Adjusted R-squared": "{:.2%}",
+                    "Daily Alpha": "{:.3%}",
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+
+
+        st.subheader("Model Comparison Insights")
+
+        improvement = ff5_adj - ff3_adj
+
+        if not np.isfinite(improvement):
+            st.warning(
+                "Insufficient data to compare adjusted R-squared."
+            )
+        elif improvement > 0:
+            st.success(
+                f"**FF5 provides a better adjusted fit.** "
+                f"Adjusted R² increases by {improvement:.2%} "
+                "in percentage-point terms, suggesting that "
+                "profitability and investment factors add "
+                "explanatory power over this historical period."
+            )
+        elif improvement < 0:
+            st.info(
+                f"**FF3 provides a better adjusted fit.** "
+                f"Adjusted R² decreases by {abs(improvement):.2%} "
+                "in percentage-point terms when adding "
+                "profitability and investment factors."
+            )
+        else:
+            st.info(
+                "Both models have the same adjusted R-squared."
+            )
+
+        st.caption(
+            "These comparisons describe in-sample regression fit. "
+            "They do not establish predictive performance or "
+            "statistical significance."
+        )
+
+        st.divider()
+
+        st.subheader("Factor Statistical Significance")
+        st.caption(
+            "Fama-French five-factor estimates with HAC "
+            "standard errors and 95% confidence intervals."
+        )
+
+        significance_table = ff5_diagnostics.copy()
+
+        significance_table["Factor"] = [
+            "Alpha",
+            "Market",
+            "Size (SMB)",
+            "Value (HML)",
+            "Profitability (RMW)",
+            "Investment (CMA)",
+        ]
+
+        significance_table["Significant at 5%"] = (
+            significance_table["p-value"] < 0.05
+        ).map({True: "Yes", False: "No"})
+
+        significance_table = significance_table[
+            [
+                "Factor",
+                "Coefficient",
+                "Standard Error",
+                "t-statistic",
+                "p-value",
+                "CI Lower",
+                "CI Upper",
+                "Significant at 5%",
+            ]
+        ]
+
+        st.dataframe(
+            significance_table.style.format(
+                {
+                    "Coefficient": "{:.3f}",
+                    "Standard Error": "{:.3f}",
+                    "t-statistic": "{:.2f}",
+                    "p-value": "{:.4f}",
+                    "CI Lower": "{:.3f}",
+                    "CI Upper": "{:.3f}",
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+
+        st.subheader("Factor Confidence Intervals")
+
+        st.caption(
+            "Purple dots show estimated factor loadings. "
+            "Blue lines represent HAC-based 95% confidence intervals."
+        )
+
+        ci_data = ff5_diagnostics.drop(index="const").copy()
+
+        ci_labels = {
+            "Mkt-RF": "Market",
+            "SMB": "Size (SMB)",
+            "HML": "Value (HML)",
+            "RMW": "Profitability (RMW)",
+            "CMA": "Investment (CMA)",
+        }
+
+        ci_data["Factor"] = ci_data.index.map(ci_labels)
+        ci_data = ci_data.iloc[::-1]
+
+        fig_ci = go.Figure()
+
+        fig_ci.add_trace(
+            go.Scatter(
+                x=ci_data["Coefficient"],
+                y=ci_data["Factor"],
+                mode="markers",
+                marker=dict(color=PURPLE, size=11),
+                error_x=dict(
+                    type="data",
+                    symmetric=False,
+                    array=ci_data["CI Upper"] - ci_data["Coefficient"],
+                    arrayminus=ci_data["Coefficient"] - ci_data["CI Lower"],
+                    color=BLUE,
+                    thickness=2,
+                    width=6,
+                ),
+                name="95% Confidence Interval",
+            )
+        )
+
+        fig_ci.add_vline(
+            x=0,
+            line_dash="dash",
+            line_color="#8793A8",
+        )
+
+        fig_ci.update_layout(
+            xaxis_title="Estimated Factor Loading",
+            yaxis_title="",
+            showlegend=False,
+        )
+
+        st.plotly_chart(
+            style_figure(fig_ci, 400),
+            width="stretch",
+            key="ff5_confidence_interval_chart",
+        )
+
+
+        st.subheader("Statistical Significance Insights")
+
+        factor_names = {
+            "Mkt-RF": "Market",
+            "SMB": "Size",
+            "HML": "Value",
+            "RMW": "Profitability",
+            "CMA": "Investment",
+        }
+
+        significant_factors = []
+        insignificant_factors = []
+
+        for factor, name in factor_names.items():
+            p_value = ff5_diagnostics.loc[factor, "p-value"]
+
+            if p_value < 0.05:
+                significant_factors.append(name)
+            else:
+                insignificant_factors.append(name)
+
+        st.info(
+            "**Statistically significant exposures (5% level):** "
+            + (
+                ", ".join(significant_factors)
+                if significant_factors
+                else "None"
+            )
+        )
+
+        st.info(
+            "**Not statistically significant (5% level):** "
+            + (
+                ", ".join(insignificant_factors)
+                if insignificant_factors
+                else "None"
+            )
+        )
+
+        st.caption(
+            "Significance is based on HAC standard errors "
+            "and individual two-sided tests at the 5% level. "
+            "These results do not prove causation, "
+            "economic importance, or future performance."
+        )
 
 
 with stress_tab:
