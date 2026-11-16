@@ -1919,6 +1919,19 @@ with regimes_tab:
             }
         )
 
+
+        
+    
+        # Format regime performance statistics.
+        regime_display = regime_performance.rename(
+            columns={
+                "Average_Daily_Return": "Average Daily Return",
+                "Annualized_Volatility": "Annualized Volatility",
+                "Observations": "Trading Days",
+            }
+        )
+
+        # Display the regime comparison table.
         st.dataframe(
             regime_display.style.format({
                 "Average Daily Return": "{:.2%}",
@@ -1927,3 +1940,38 @@ with regimes_tab:
             }),
             width="stretch",
         )
+
+        # Explain differences in portfolio performance across regimes.
+        if {
+            "High Volatility",
+            "Low Volatility",
+        }.issubset(regime_performance.index):
+
+            high_return = regime_performance.loc[
+                "High Volatility", "Average_Daily_Return"
+            ]
+
+            low_return = regime_performance.loc[
+                "Low Volatility", "Average_Daily_Return"
+            ]
+
+            st.subheader("Market Regime Insights")
+
+            if high_return > low_return:
+                st.info(
+                    "Your portfolio had a higher average daily return "
+                    "during high-volatility market conditions."
+                )
+
+            elif low_return > high_return:
+                st.info(
+                    "Your portfolio had a higher average daily return "
+                    "during low-volatility market conditions."
+                )
+
+            else:
+                st.info(
+                    "Your portfolio had the same average daily return "
+                    "across both market regimes."
+                )
+    
