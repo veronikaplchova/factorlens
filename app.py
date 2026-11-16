@@ -24,7 +24,10 @@ from src.risk import calculate_risk_contributions
 from src.factors import calculate_capm, calculate_ff3, calculate_ff5
 from src.diagnostics import calculate_factor_diagnostics
 
-
+from src.regimes import (
+    calculate_rolling_volatility,
+    classify_market_regimes,
+)
 
 from src.stress import (
     STRESS_PERIODS,
@@ -377,6 +380,20 @@ benchmark_prices = load_stock_data(
 )
 benchmark_returns = calculate_daily_returns(benchmark_prices)["SPY"]
 
+
+# Calculate 21-day annualized S&P 500 rolling volatility.
+market_rolling_volatility = calculate_rolling_volatility(
+    benchmark_returns,
+    window=21,
+)
+
+# Classify market conditions using the preceding 126 observations.
+market_regimes = classify_market_regimes(
+    market_rolling_volatility,
+    threshold_window=126,
+)
+
+
 common_dates = portfolio_returns.index.intersection(
     benchmark_returns.index
 )
@@ -459,15 +476,18 @@ comparison = pd.DataFrame({
 # Build the main dashboard navigation.
 
 
-overview_tab, builder_tab, risk_tab, factor_tab, stress_tab = st.tabs(
+
+overview_tab, builder_tab, risk_tab, factor_tab, stress_tab, regimes_tab = st.tabs(
     [
         " Overview",
         " Portfolio Builder",
         " Risk Analytics",
         " Factor Analysis",
         " Stress Testing",
+        " Market Regimes",
     ]
 )
+
 
 
 with overview_tab:
@@ -1775,8 +1795,48 @@ with stress_tab:
 
 
 
+
+
     except Exception as exc:
         st.error(
             f"Historical price download failed: {exc}"
         )
+
+
+
+
+# Market Regime Detection Dashboard
+with regimes_tab:
+    st.subheader("Market Regime Detection")
+
+    st.caption(
+        "Explore changing S&P 500 market volatility "
+        "using a 21-trading-day rolling window."
+    )
+
+    st.subheader("Historical Market Volatility")
+
+    fig_regimes = go.Figure()
+
+    fig_regimes.add_trace(
+        go.Scatter(
+            x=market_rolling_volatility.index,
+            y=market_rolling_volatility * 100,
+            mode="lines",
+            name="21-Day Market Volatility",
+            line=dict(color=PURPLE, width=2),
+        )
+    )
+
+    fig_regimes.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Annualized Volatility (%)",
+    )
+
+    st.plotly_chart(
+        style_figure(fig_regimes, 430),
+        width="stretch",
+        key="market_volatility_chart",
+    )
+
 
