@@ -1816,6 +1816,15 @@ with regimes_tab:
 
     st.subheader("Historical Market Volatility")
 
+
+    # Calculate the historical threshold using previous observations.
+    market_volatility_threshold = (
+        market_rolling_volatility.shift(1)
+        .rolling(window=126)
+        .median()
+    )
+
+
     fig_regimes = go.Figure()
 
     fig_regimes.add_trace(
@@ -1828,6 +1837,19 @@ with regimes_tab:
         )
     )
 
+
+    # Add the historical volatility threshold.
+    fig_regimes.add_trace(
+        go.Scatter(
+            x=market_volatility_threshold.index,
+            y=market_volatility_threshold * 100,
+            mode="lines",
+            name="Historical Median Threshold",
+            line=dict(color=BLUE, width=2, dash="dash"),
+        )
+    )
+
+
     fig_regimes.update_layout(
         xaxis_title="Date",
         yaxis_title="Annualized Volatility (%)",
@@ -1838,5 +1860,30 @@ with regimes_tab:
         width="stretch",
         key="market_volatility_chart",
     )
+
+    # Display the most recent classified market regime.
+    valid_market_regimes = market_regimes.dropna()
+
+    if valid_market_regimes.empty:
+        st.info(
+            "Insufficient historical data to classify "
+            "the current market regime."
+        )
+    else:
+        latest_regime = valid_market_regimes.iloc[-1]
+        latest_regime_date = valid_market_regimes.index[-1]
+
+        st.subheader("Latest Market Regime")
+
+        st.metric(
+            "Market Classification",
+            latest_regime,
+        )
+
+        st.caption(
+            f"Classification as of "
+            f"{latest_regime_date:%Y-%m-%d}, "
+            "based on historical S&P 500 volatility."
+        )
 
 
