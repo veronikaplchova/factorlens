@@ -31,7 +31,11 @@ The user chooses holdings from a predefined universe (AAPL, MSFT, NVDA, JPM, GS,
 
 For a given trading day, portfolio return is computed as the weighted sum of individual stock returns:
 
-**Portfolio return:** `r_p,t = Σ_i w_i × r_i,t`
+**Portfolio return:**
+
+$$
+r_{p,t} = \sum_{i=1}^{N} w_i \, r_{i,t}
+$$
 
 Returns are based on **auto-adjusted daily closing prices** obtained via `yfinance`. The application compounds daily portfolio returns to produce cumulative value (illustrated using an initial investment of **$10,000**) and benchmarks the result against **SPY**, an ETF tracking the S&P 500.
 
@@ -39,8 +43,8 @@ Key performance measures:
 
 - **Total return:** the compounded percentage gain or loss over the selected interval.
 - **Annualized return:** compound growth expressed on a 252-trading-day-year basis.
-- **Annualized volatility:** standard deviation of daily returns multiplied by `√252`; it measures historical return variability.
-- **Sharpe ratio:** average excess daily return divided by daily return volatility and scaled by `√252`; the dashboard assumes a **0% annual risk-free rate** for this metric.
+- **Annualized volatility:** standard deviation of daily returns multiplied by $\sqrt{252}$; it measures historical return variability.
+- **Sharpe ratio:** average excess daily return divided by daily return volatility and scaled by $\sqrt{252}$; the dashboard assumes a **0% annual risk-free rate** for this metric.
 - **Maximum drawdown:** the largest peak-to-trough decline in compounded portfolio value over the selected period.
 
 The weighted daily-return engine describes a **constant-weight return series**, not a transaction-level backtest with trading costs or an execution schedule.
@@ -50,9 +54,15 @@ The weighted daily-return engine describes a **constant-weight return series**, 
 The Portfolio Builder summarizes allocations by stock and sector. Risk Analytics then considers whether the allocation is *actually diversified*:
 
 - **Correlation:** measures how two stocks' daily returns co-move (from −1 to +1). The dashboard displays a correlation heatmap and identifies the strongest positive pair.
-- **HHI (concentration index):** `Σ_i w_i²`. Higher values mean greater concentration in a smaller number of positions.
-- **Effective holdings:** `1 / HHI`. This expresses weight concentration as an equivalent number of equally weighted holdings; it is **not** the number of independent risk factors.
-- **Percentage risk contribution:** `100 × w_i(Σw)_i / (wᵀΣw)`, where `Σ` is the sample covariance matrix. This measures each position's share of total portfolio volatility; contributions sum to 100% and can be negative when a position offsets other risks.
+- **HHI (concentration index):** $\mathrm{HHI} = \sum_{i=1}^{N} w_i^2$. Higher values mean greater concentration in a smaller number of positions.
+- **Effective holdings:** $N_{\mathrm{eff}} = \frac{1}{\mathrm{HHI}}$. This expresses weight concentration as an equivalent number of equally weighted holdings; it is **not** the number of independent risk factors.
+**Percentage risk contribution** measures each position's share of total portfolio volatility:
+
+$$
+\mathrm{RC}_i (\%) = 100 \times \frac{w_i (\Sigma \mathbf{w})_i}{\mathbf{w}^{\mathsf{T}} \Sigma \mathbf{w}}
+$$
+
+Here $\Sigma$ is the sample covariance matrix and $\mathbf{w}$ is the portfolio-weight vector. Contributions sum to 100% and can be negative when a position offsets other risks.
 
 This distinction is crucial: **a stock with a 20% portfolio weight can contribute more—or less—than 20% of total portfolio risk** because volatility and covariance both matter. The app compares position weights with estimated risk contributions and highlights disproportionate exposures.
 
@@ -62,21 +72,30 @@ The **Factor Analysis** page has five sub-tabs: *CAPM*, *Fama–French 3*, *Fama
 
 **CAPM (Capital Asset Pricing Model)** relates the portfolio's daily return to SPY's daily return:
 
-`r_p,t − r_f = α + β_m (r_SPY,t − r_f) + ε_t`
+$$
+r_{p,t} - r_f = \alpha + \beta_m \left(r_{\mathrm{SPY},t} - r_f\right) + \varepsilon_t
+$$
 
-- **Beta (`β`):** sensitivity to market moves; a beta above 1 indicates stronger historical responsiveness than the proxy market.
-- **Alpha (`α`):** the fitted daily intercept; by itself, it does **not** demonstrate manager skill or statistically significant outperformance.
+- **Beta ($\beta$):** sensitivity to market moves; a beta above 1 indicates stronger historical responsiveness than the proxy market.
+- **Alpha ($\alpha$):** the fitted daily intercept; by itself, it does **not** demonstrate manager skill or statistically significant outperformance.
 - **R²:** the share of variation in historical daily portfolio returns explained by the regression.
 
-The dashboard's CAPM calculation assumes `r_f = 0`. Its benchmark is **SPY**, not the S&P 500 index return itself.
+The dashboard's CAPM calculation assumes $r_f = 0$. Its benchmark is **SPY**, not the S&P 500 index return itself.
 
 **Fama–French 3-factor model (FF3)** extends market exposure to include **size** and **value**:
 
-`r_p,t − RF_t = α + β_m(Mkt−RF)_t + β_s SMB_t + β_h HML_t + ε_t`
+$$
+r_{p,t} - RF_t = \alpha + \beta_m (\mathrm{Mkt}-RF)_t + \beta_s \mathrm{SMB}_t + \beta_h \mathrm{HML}_t + \varepsilon_t
+$$
 
 **Fama–French 5-factor model (FF5)** adds **profitability** and **investment**:
 
-`r_p,t − RF_t = α + β_m(Mkt−RF)_t + β_s SMB_t + β_h HML_t + β_r RMW_t + β_c CMA_t + ε_t`
+$$
+\begin{aligned}
+r_{p,t} - RF_t ={} & \alpha + \beta_m (\mathrm{Mkt}-RF)_t + \beta_s \mathrm{SMB}_t \\
+& + \beta_h \mathrm{HML}_t + \beta_r \mathrm{RMW}_t + \beta_c \mathrm{CMA}_t + \varepsilon_t
+\end{aligned}
+$$
 
 | Factor | Meaning | Interpretation of a positive loading |
 | --- | --- | --- |
