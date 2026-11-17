@@ -21,7 +21,30 @@ FactorLens is an interactive quantitative finance dashboard for constructing equ
 
 ## Dashboard preview
 
-*Screenshots will be added in the next project phase.*
+
+### Portfolio Overview
+
+An overview of portfolio performance, including returns, volatility, Sharpe ratio, maximum drawdown, and diversification measures.
+
+![FactorLens Overview](screenshots/overview_metrics.png)
+
+### Portfolio Performance
+
+Comparison of a custom portfolio's historical performance against the S&P 500 benchmark (SPY).
+
+![Portfolio vs. S&P 500](screenshots/portfolio_performance.png)
+
+### Advanced Analytics
+
+Explore portfolio risk, factor exposures, and historical crisis performance.
+
+| Risk Analytics | Fama–French Factor Analysis |
+|:---:|:---:|
+| <img src="screenshots/risk_analytics.png" width="450"> | <img src="screenshots/factor_analysis_ff5.png" width="450"> |
+
+**Historical Stress Testing**
+
+![Historical Crisis Performance](screenshots/crisis_performance.png)
 
 ## Methodology and key concepts
 
@@ -593,6 +616,4 @@ The goal is to go beyond simply measuring portfolio returns and help users under
 Through this project, I aimed to combine **financial analysis, econometrics, Python programming, and interactive data visualization** into an accessible portfolio intelligence dashboard.
 
 
-## Disclaimer
 
-FactorLens is an educational and research-oriented application. Historical estimates and model outputs are **not investment advice**, and past performance does not guarantee future results.
