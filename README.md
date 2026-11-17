@@ -27,17 +27,35 @@ FactorLens is an interactive quantitative finance dashboard for constructing equ
 
 ### 1. Portfolio construction and performance
 
-The user chooses holdings from a predefined universe (AAPL, MSFT, NVDA, JPM, GS, XOM, JNJ, WMT, CAT, TSLA) and assigns **nonnegative weights summing to 100%**. Changing one weight redistributes the remaining allocation across other selected holdings; equal weighting can be restored with one click.
+The user chooses holdings from a predefined universe (AAPL, MSFT, NVDA, JPM, GS, XOM, JNJ, WMT, CAT, TSLA) and assigns **nonnegative weights summing to 100%**. Users can manually adjust individual stock weights, with the total portfolio allocation required to equal 100%. An equal-weight allocation can be restored with a single click.
 
 For a given trading day, portfolio return is computed as the weighted sum of individual stock returns:
 
 **Portfolio return:**
 
+
+
+FactorLens calculates how a portfolio performs by combining the daily returns of individual stocks according to their portfolio weights.
+
+For example, if you invest **60% in Apple and 40% in Microsoft**, and their stock prices increase by 2% and 1% respectively, your portfolio gains:
+
+**(60% × 2%) + (40% × 1%) = 1.6%**
+
+This calculation follows the formula:
+
 $$
-r_{p,t} = \sum_{i=1}^{N} w_i \, r_{i,t}
+r_{p,t} = \sum_{i=1}^{N} w_i r_{i,t}
 $$
 
-Returns are based on **auto-adjusted daily closing prices** obtained via `yfinance`. The application compounds daily portfolio returns to produce cumulative value (illustrated using an initial investment of **$10,000**) and benchmarks the result against **SPY**, an ETF tracking the S&P 500.
+Where:
+- **rₚ,ₜ** = Total portfolio return on a given day
+- **wᵢ** = Percentage of the portfolio invested in stock i
+- **rᵢ,ₜ** = Daily return of stock i
+- **N** = Number of stocks in the portfolio
+
+FactorLens uses historical stock prices from Yahoo Finance (via `yfinance`), adjusted for stock splits and dividends.
+
+The dashboard then shows how an initial investment of **$10,000** would have grown over the selected period and compares that performance with the **S&P 500**, a widely used benchmark representing large U.S. companies (tracked through the SPY ETF).
 
 Key performance measures:
 
