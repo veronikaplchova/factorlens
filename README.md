@@ -22,18 +22,12 @@ FactorLens is an interactive quantitative finance dashboard for constructing equ
 ## Dashboard preview
 
 
-### Portfolio Overview
+### Core Dashboard Views
 
-An overview of portfolio performance, including returns, volatility, Sharpe ratio, maximum drawdown, and diversification measures.
-
-![FactorLens Overview](screenshots/overview_metrics.png)
-
-### Portfolio Performance
-
-Comparison of a custom portfolio's historical performance against the S&P 500 benchmark (SPY).
-
-![Portfolio vs. S&P 500](screenshots/portfolio_performance.png)
-
+| Portfolio Overview | Portfolio Performance |
+|---|---|
+| An overview of portfolio performance, including returns, volatility, Sharpe ratio, maximum drawdown, and diversification measures. | Comparison of a custom portfolio's historical performance against the S&P 500 benchmark (SPY). |
+| <img src="screenshots/overview_metrics.png" width="100%"> | <img src="screenshots/portfolio_performance.png" width="100%"> |
 ### Advanced Analytics
 
 Explore portfolio risk, factor exposures, and historical crisis performance.
