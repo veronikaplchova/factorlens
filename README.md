@@ -1,5 +1,13 @@
 # FactorLens
 
+
+###  Live Dashboard
+
+**[Launch FactorLens](https://factorlens.streamlit.app/)**
+
+Explore portfolio performance, risk analytics, Fama–French factor models, historical stress testing, and market regimes through the interactive dashboard.
+
+
 **Quantitative Portfolio Intelligence | Python · Streamlit · Asset Pricing · Risk Analytics**
 
 FactorLens is an interactive quantitative finance dashboard for constructing equity portfolios, evaluating historical performance and diversification, estimating asset-pricing factor exposures, and exploring portfolio behavior during market stress. It brings portfolio analytics and statistical modelling together in a transparent, visual research workflow.
@@ -36,9 +44,17 @@ Explore portfolio risk, factor exposures, and historical crisis performance.
 |:---:|:---:|
 | <img src="screenshots/risk_analytics.png" width="450"> | <img src="screenshots/factor_analysis_ff5.png" width="450"> |
 
-**Historical Stress Testing**
+### Historical Stress Tesing
 
-![Historical Crisis Performance](screenshots/crisis_performance.png)
+FactorLens evaluates how a selected portfolio would have performed during major historical market downturns, comparing its returns with the S&P 500 and identifying the stocks contributing to its gains or losses.
+
+
+<h3>Historical Stress Testing</h3>
+
+<p align="center">
+  <img src="screenshots/crisis_performance.png" alt="FactorLens Historical Stress Testing" width="450" />
+</p>
+
 
 ## Methodology and key concepts
 
