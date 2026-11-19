@@ -14,7 +14,7 @@ FactorLens is an interactive quantitative finance dashboard for constructing equ
 
 **Stack:** Python · Streamlit · Pandas · NumPy · Plotly · statsmodels · yfinance · pandas-datareader · pytest
 
-> **Status:** Implemented and tested locally. Public Streamlit deployment and dashboard screenshots are upcoming.
+
 
 ## At a glance
 
@@ -30,7 +30,7 @@ FactorLens is an interactive quantitative finance dashboard for constructing equ
 ## Dashboard preview
 
 
-### Core Dashboard Views
+
 
 | Portfolio Overview | Portfolio Performance |
 |---|---|
